@@ -1,0 +1,234 @@
+[gd_scene load_steps=23 format=3 uid="uid://b8x0k4x7m8p2n"]
+
+[ext_resource type="Script" uid="uid://cowigkod8nxug" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://dykf6esdwexi2" path="res://scripts/camera_controller.gd" id="2_camera"]
+[ext_resource type="Script" uid="uid://c8n1m9k4p2x7v" path="res://scripts/player.gd" id="3_player"]
+[ext_resource type="PackedScene" uid="uid://d8x1m4k7n9p2b" path="res://scenes/mob.tscn" id="5_mob_scene"]
+[ext_resource type="PackedScene" path="res://scenes/tree_pine.tscn" id="6_tree_pine"]
+
+[sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
+sky_top_color = Color(0.384314, 0.454902, 0.54902, 1)
+sky_horizon_color = Color(0.647059, 0.654902, 0.670588, 1)
+ground_bottom_color = Color(0.2, 0.168627, 0.133333, 1)
+ground_horizon_color = Color(0.647059, 0.654902, 0.670588, 1)
+
+[sub_resource type="Sky" id="Sky_1"]
+sky_material = SubResource("ProceduralSkyMaterial_1")
+
+[sub_resource type="Environment" id="Environment_1"]
+background_mode = 2
+sky = SubResource("Sky_1")
+tonemap_mode = 2
+glow_enabled = true
+
+[sub_resource type="NavigationMesh" id="NavigationMesh_1"]
+vertices = PackedVector3Array(-59.5, 0, -59.5, 59.5, 0, -59.5, 59.5, 0, 59.5, -59.5, 0, 59.5)
+polygons = [PackedInt32Array(0, 1, 2), PackedInt32Array(0, 2, 3)]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ground"]
+albedo_color = Color(0.22, 0.38, 0.24, 1)
+
+[sub_resource type="PlaneMesh" id="PlaneMesh_1"]
+material = SubResource("StandardMaterial3D_ground")
+size = Vector2(120, 120)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_ground"]
+size = Vector3(120, 0.2, 120)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_player"]
+albedo_color = Color(0.1, 0.6, 0.95, 1)
+roughness = 0.3
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_player"]
+material = SubResource("StandardMaterial3D_player")
+radius = 0.4
+height = 1.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_pointer"]
+albedo_color = Color(0.95, 0.85, 0.1, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_pointer"]
+material = SubResource("StandardMaterial3D_pointer")
+size = Vector3(0.5, 0.2, 0.4)
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
+radius = 0.4
+height = 1.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red"]
+albedo_color = Color(0.85, 0.25, 0.25, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_red"]
+material = SubResource("StandardMaterial3D_red")
+size = Vector3(2, 4, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_red"]
+size = Vector3(2, 4, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blue"]
+albedo_color = Color(0.25, 0.4, 0.85, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_blue"]
+material = SubResource("StandardMaterial3D_blue")
+size = Vector3(2, 6, 2)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_blue"]
+size = Vector3(2, 6, 2)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_yellow"]
+albedo_color = Color(0.9, 0.75, 0.2, 1)
+
+[sub_resource type="BoxMesh" id="BoxMesh_yellow"]
+material = SubResource("StandardMaterial3D_yellow")
+size = Vector3(3, 3, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_yellow"]
+size = Vector3(3, 3, 3)
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_green"]
+albedo_color = Color(0.2, 0.75, 0.4, 1)
+
+[sub_resource type="PrismMesh" id="PrismMesh_green"]
+material = SubResource("StandardMaterial3D_green")
+size = Vector3(3, 4, 3)
+
+[sub_resource type="BoxShape3D" id="BoxShape3D_green"]
+size = Vector3(3, 4, 3)
+
+[node name="Main" type="Node3D"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = SubResource("Environment_1")
+
+[node name="DirectionalLight3D" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 15, 0)
+shadow_enabled = true
+
+[node name="NavigationRegion3D" type="NavigationRegion3D" parent="."]
+navigation_mesh = SubResource("NavigationMesh_1")
+
+[node name="Ground" type="MeshInstance3D" parent="NavigationRegion3D"]
+mesh = SubResource("PlaneMesh_1")
+
+[node name="GroundStaticBody" type="StaticBody3D" parent="NavigationRegion3D/Ground"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/Ground/GroundStaticBody"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
+shape = SubResource("BoxShape3D_ground")
+
+[node name="Player" type="CharacterBody3D" parent="NavigationRegion3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+script = ExtResource("3_player")
+
+[node name="VisualMesh" type="Node3D" parent="NavigationRegion3D/Player"]
+
+[node name="Capsule" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
+mesh = SubResource("CapsuleMesh_player")
+
+[node name="EyesPointer" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.3)
+mesh = SubResource("BoxMesh_pointer")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/Player"]
+shape = SubResource("CapsuleShape3D_player")
+
+[node name="NavigationAgent3D" type="NavigationAgent3D" parent="NavigationRegion3D/Player"]
+
+[node name="Mob1" parent="NavigationRegion3D" instance=ExtResource("5_mob_scene")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 2, 0, 2)
+mob_name = "Poring 3D"
+level = 5
+
+[node name="Mob2" parent="NavigationRegion3D" instance=ExtResource("5_mob_scene")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -2, 0, -2)
+mob_name = "Fabre 3D"
+level = 8
+max_hp = 250
+
+[node name="RedBuilding" type="MeshInstance3D" parent="NavigationRegion3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 2, 4)
+mesh = SubResource("BoxMesh_red")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="NavigationRegion3D/RedBuilding"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/RedBuilding/StaticBody3D"]
+shape = SubResource("BoxShape3D_red")
+
+[node name="BlueBuilding" type="MeshInstance3D" parent="NavigationRegion3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 3, 4)
+mesh = SubResource("BoxMesh_blue")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="NavigationRegion3D/BlueBuilding"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/BlueBuilding/StaticBody3D"]
+shape = SubResource("BoxShape3D_blue")
+
+[node name="YellowBuilding" type="MeshInstance3D" parent="NavigationRegion3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -4, 1.5, -4)
+mesh = SubResource("BoxMesh_yellow")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="NavigationRegion3D/YellowBuilding"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/YellowBuilding/StaticBody3D"]
+shape = SubResource("BoxShape3D_yellow")
+
+[node name="GreenPyramid" type="MeshInstance3D" parent="NavigationRegion3D"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 4, 2, -4)
+mesh = SubResource("PrismMesh_green")
+
+[node name="StaticBody3D" type="StaticBody3D" parent="NavigationRegion3D/GreenPyramid"]
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="NavigationRegion3D/GreenPyramid/StaticBody3D"]
+shape = SubResource("BoxShape3D_green")
+
+[node name="Tree1" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, 6)
+
+[node name="Tree2" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, 6)
+
+[node name="Tree3" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 8, 0, -6)
+
+[node name="Tree4" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -8, 0, -6)
+
+[node name="Tree5" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 9)
+
+[node name="Tree6" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -9)
+
+[node name="Tree7" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 10, 0, 0)
+
+[node name="Tree8" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -10, 0, 0)
+
+[node name="Tree9" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 25, 0, 20)
+
+[node name="Tree10" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -25, 0, -20)
+
+[node name="Tree11" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 35, 0, -30)
+
+[node name="Tree12" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -35, 0, 30)
+
+[node name="Tree13" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 50, 0, 50)
+
+[node name="Tree14" parent="NavigationRegion3D" instance=ExtResource("6_tree_pine")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -45, 0, -45)
+
+[node name="CameraRig" type="Node3D" parent="."]
+script = ExtResource("2_camera")
+
+[node name="CameraPitch" type="Node3D" parent="CameraRig"]
+
+[node name="Camera3D" type="Camera3D" parent="CameraRig/CameraPitch"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 35)
+

@@ -1,0 +1,49 @@
+[gd_scene format=3 uid="uid://cak3m5kap0n0"]
+
+[ext_resource type="Script" path="res://scripts/npc_blacksmith.gd" id="1_npc_blacksmith"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_blacksmith"]
+albedo_color = Color(0.85, 0.4, 0.15, 1)
+roughness = 0.4
+
+[sub_resource type="CapsuleMesh" id="CapsuleMesh_blacksmith"]
+material = SubResource("StandardMaterial3D_blacksmith")
+radius = 0.5
+height = 1.8
+
+[sub_resource type="CapsuleShape3D" id="CapsuleShape3D_blacksmith"]
+radius = 0.5
+height = 1.8
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ring"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(1.0, 0.5, 0.1, 0.85)
+
+[sub_resource type="TorusMesh" id="TorusMesh_ring"]
+material = SubResource("StandardMaterial3D_ring")
+inner_radius = 0.65
+outer_radius = 0.8
+
+[node name="NPCBlacksmith" type="StaticBody3D"]
+script = ExtResource("1_npc_blacksmith")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+mesh = SubResource("CapsuleMesh_blacksmith")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, 0)
+shape = SubResource("CapsuleShape3D_blacksmith")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+mesh = SubResource("TorusMesh_ring")
+
+[node name="Label3D" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 2.15, 0)
+billboard = 1
+text = "🔨 Ferreiro
+[ Oficina de Reparos ]"
+font_size = 26
+outline_size = 6

@@ -1,0 +1,48 @@
+[gd_scene format=3 uid="uid://ej512nx32ubj"]
+
+[ext_resource type="Script" uid="uid://d8k1m4j8p9n5" path="res://scripts/mob.gd" id="1_mob"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_mob"]
+albedo_color = Color(0.9, 0.25, 0.45, 1)
+roughness = 0.2
+
+[sub_resource type="SphereMesh" id="SphereMesh_mob"]
+material = SubResource("StandardMaterial3D_mob")
+radius = 0.6
+height = 1.0
+
+[sub_resource type="SphereShape3D" id="SphereShape3D_mob"]
+radius = 0.6
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ring"]
+transparency = 1
+shading_mode = 0
+albedo_color = Color(0.95, 0.2, 0.2, 0.85)
+
+[sub_resource type="TorusMesh" id="TorusMesh_ring"]
+material = SubResource("StandardMaterial3D_ring")
+inner_radius = 0.7
+outer_radius = 0.85
+
+[node name="Mob" type="CharacterBody3D"]
+script = ExtResource("1_mob")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+mesh = SubResource("SphereMesh_mob")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.5, 0)
+shape = SubResource("SphereShape3D_mob")
+
+[node name="SelectionRing" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.05, 0)
+mesh = SubResource("TorusMesh_ring")
+
+[node name="HpLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0)
+billboard = 1
+text = "Poring (Lv 5)
+HP: 150/150"
+font_size = 28
+outline_size = 6

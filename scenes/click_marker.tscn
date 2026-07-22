@@ -1,0 +1,23 @@
+[gd_scene load_steps=5 format=3 uid="uid://c7x9m8k1n4p3b"]
+
+[ext_resource type="Script" uid="uid://dm0k142j8p9n5" path="res://scripts/click_marker.gd" id="1_marker"]
+
+[sub_resource type="StandardMaterial3D" id="StandardMaterial3D_ring"]
+transparency = 1
+blend_mode = 0
+cull_mode = 2
+shading_mode = 0
+albedo_color = Color(0.2, 0.95, 0.5, 0.9)
+
+[sub_resource type="TorusMesh" id="TorusMesh_ring"]
+inner_radius = 0.6
+outer_radius = 0.8
+rings = 24
+ring_segments = 12
+
+[node name="ClickMarker" type="Node3D"]
+script = ExtResource("1_marker")
+
+[node name="MeshInstance3D" type="MeshInstance3D" parent="."]
+material_override = SubResource("StandardMaterial3D_ring")
+mesh = SubResource("TorusMesh_ring")
