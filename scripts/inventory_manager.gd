@@ -191,6 +191,27 @@ func swap_slots(idx_a: int, idx_b: int) -> bool:
 	_emit_updates()
 	return true
 
+## Verifica se o jogador possui os atributos necessários para equipar o item
+func can_equip_item(item: ItemData) -> Dictionary:
+	if not item or item.item_type != ItemData.ItemType.EQUIPMENT or item.req_stats.is_empty():
+		return {"can_equip": true, "missing_str": ""}
+		
+	if not player_ref or not player_ref.attributes:
+		return {"can_equip": true, "missing_str": ""}
+		
+	var attr: CharacterAttributes = player_ref.attributes
+	var missing_arr: Array = []
+	var can: bool = true
+	
+	for stat_key in item.req_stats.keys():
+		var req_val: int = item.req_stats[stat_key]
+		var cur_val: int = attr.get_stat_value(stat_key)
+		if cur_val < req_val:
+			missing_arr.append("%s %d" % [str(stat_key).to_upper(), req_val])
+			can = false
+			
+	return {"can_equip": can, "missing_str": ", ".join(missing_arr)}
+
 ## Equipar um item da mochila no personagem
 func equip_item_from_slot(slot_idx: int) -> bool:
 	if slot_idx < 0 or slot_idx >= max_slots:
@@ -201,6 +222,13 @@ func equip_item_from_slot(slot_idx: int) -> bool:
 
 	var item: ItemData = slot["item"]
 	if item.item_type != ItemData.ItemType.EQUIPMENT or item.equip_slot == ItemData.EquipSlot.NONE:
+		return false
+
+	# Checar requisitos de atributos de classe (STR, AGI, INT, DEX, VIT, LUK)
+	var req_check := can_equip_item(item)
+	if not req_check["can_equip"]:
+		if player_ref:
+			DamagePopup.spawn(player_ref.get_parent(), player_ref.global_position + Vector3(0, 1.2, 0), "Requer: %s!" % req_check["missing_str"], Color(1.0, 0.3, 0.3), 32, false)
 		return false
 
 	var target_key: String = _get_target_equip_key(item.equip_slot)
@@ -222,6 +250,46 @@ func equip_item_from_slot(slot_idx: int) -> bool:
 	_update_player_stats()
 	emit_signal("equipment_changed")
 	return true
+
+## Refina um equipamento usando uma joia (Jewel of Simplicity +0~+6 | Jewel of Ethrel +6~+9)
+func apply_jewel_to_item(jewel_slot_idx: int, target_slot_idx: int) -> Dictionary:
+	if jewel_slot_idx < 0 or jewel_slot_idx >= max_slots or target_slot_idx < 0 or target_slot_idx >= max_slots:
+		return {"success": false, "reason": "Slots inválidos"}
+		
+	var jewel_slot = slots[jewel_slot_idx]
+	var target_slot = slots[target_slot_idx]
+	
+	if jewel_slot == null or target_slot == null:
+		return {"success": false, "reason": "Slot vazio"}
+		
+	var jewel: ItemData = jewel_slot["item"]
+	var target_item: ItemData = target_slot["item"]
+	
+	if target_item.item_type != ItemData.ItemType.EQUIPMENT:
+		return {"success": false, "reason": "Apenas equipamentos podem ser refinados"}
+		
+	if jewel.id == "jewel_simplicity":
+		if target_item.upgrade_level >= 6:
+			return {"success": false, "reason": "Jewel of Simplicity refina até +6. Use Jewel of Ethrel!"}
+		target_item.upgrade_level += 1
+	elif jewel.id == "jewel_ethrel":
+		if target_item.upgrade_level < 6:
+			return {"success": false, "reason": "Jewel of Ethrel requer equipamento +6 ou superior"}
+		if target_item.upgrade_level >= 9:
+			return {"success": false, "reason": "Equipamento já está no refinamento máximo (+9)"}
+		target_item.upgrade_level += 1
+	else:
+		return {"success": false, "reason": "Item selecionado não é uma joia de refinamento"}
+
+	# Consumir 1 joia da mochila
+	jewel_slot["quantity"] -= 1
+	if jewel_slot["quantity"] <= 0:
+		slots[jewel_slot_idx] = null
+
+	_emit_updates()
+	_update_player_stats()
+	emit_signal("equipment_changed")
+	return {"success": true, "new_level": target_item.upgrade_level, "item_name": target_item.get_display_name()}
 
 ## Desequipar um item do personagem e mover de volta para a mochila
 func unequip_item(equip_key: String) -> bool:

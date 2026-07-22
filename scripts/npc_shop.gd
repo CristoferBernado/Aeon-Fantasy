@@ -22,7 +22,10 @@ var shop_catalog: Array = [
 	{"id": "gloves", "rarity": ItemData.Rarity.COMMON, "price": 150},
 	# Armas & Escudos
 	{"id": "sword", "rarity": ItemData.Rarity.COMMON, "price": 250},
-	{"id": "shield", "rarity": ItemData.Rarity.COMMON, "price": 200}
+	{"id": "shield", "rarity": ItemData.Rarity.COMMON, "price": 200},
+	# Joias de Refinamento (+0 a +9)
+	{"id": "jewel_simplicity", "rarity": ItemData.Rarity.COMMON, "price": 300},
+	{"id": "jewel_ethrel", "rarity": ItemData.Rarity.COMMON, "price": 850}
 ]
 
 func _ready() -> void:

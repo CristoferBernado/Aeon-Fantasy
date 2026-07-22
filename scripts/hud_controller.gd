@@ -1267,7 +1267,24 @@ func _finish_drag_item(release_pos: Vector2) -> void:
 				break
 
 		if target_slot_idx >= 0 and target_slot_idx != drag_slot_idx:
-			inv.swap_slots(drag_slot_idx, target_slot_idx)
+			var drag_slot = inv.slots[drag_slot_idx]
+			var target_slot = inv.slots[target_slot_idx]
+			
+			var is_jewel_upgrade: bool = false
+			if drag_slot and drag_slot.get("item") is ItemData and target_slot and target_slot.get("item") is ItemData:
+				var drag_item: ItemData = drag_slot["item"]
+				var target_item: ItemData = target_slot["item"]
+				if (drag_item.id == "jewel_simplicity" or drag_item.id == "jewel_ethrel") and target_item.item_type == ItemData.ItemType.EQUIPMENT:
+					var res := inv.apply_jewel_to_item(drag_slot_idx, target_slot_idx)
+					if res.get("success", false):
+						DamagePopup.spawn(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), "✨ %s!" % res["item_name"], Color(1.0, 0.85, 0.2), 34, true)
+					else:
+						DamagePopup.spawn(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), res.get("reason", "Falha!"), Color(1.0, 0.3, 0.3), 32, false)
+					is_jewel_upgrade = true
+					
+			if not is_jewel_upgrade:
+				inv.swap_slots(drag_slot_idx, target_slot_idx)
+				
 			selected_slot_idx = target_slot_idx
 			_update_item_inspector()
 
@@ -1296,6 +1313,15 @@ func _on_slot_right_clicked(slot_idx: int) -> void:
 		inv.equip_item_from_slot(slot_idx)
 		selected_slot_idx = -1
 	elif item.item_type == ItemData.ItemType.CONSUMABLE:
+		if item.id == "jewel_simplicity" or item.id == "jewel_ethrel":
+			if selected_slot_idx >= 0 and selected_slot_idx != slot_idx:
+				var res := inv.apply_jewel_to_item(slot_idx, selected_slot_idx)
+				if res.get("success", false):
+					DamagePopup.spawn(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), "✨ %s!" % res["item_name"], Color(1.0, 0.85, 0.2), 34, true)
+				else:
+					DamagePopup.spawn(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), res.get("reason", "Falha!"), Color(1.0, 0.3, 0.3), 32, false)
+				_update_item_inspector()
+				return
 		inv.use_item_at(slot_idx)
 
 func _on_equip_slot_gui_input(event: InputEvent, eq_key: String) -> void:
@@ -1343,7 +1369,8 @@ func _update_item_inspector() -> void:
 		return
 
 	var r_color := item.get_rarity_color()
-	lbl_item_name.text = "%s (x%d)" % [item.name, qty] if not is_from_equip else item.name
+	var item_name_formatted: String = item.get_display_name()
+	lbl_item_name.text = "%s (x%d)" % [item_name_formatted, qty] if not is_from_equip else item_name_formatted
 	lbl_item_name.add_theme_color_override("font_color", r_color)
 
 	lbl_item_rarity.text = "Raridade: %s" % item.get_rarity_name()
@@ -1357,6 +1384,16 @@ func _update_item_inspector() -> void:
 	if item.item_type == ItemData.ItemType.EQUIPMENT:
 		var dur_tag: String = "🟢" if item.current_durability > (item.max_durability * 0.4) else ("🟡" if item.current_durability > 0 else "🔴 QUEBRADO (-80%)")
 		stats_text += "🔨 Durabilidade: %d / %d [%s]\n" % [item.current_durability, item.max_durability, dur_tag]
+
+		if not item.req_stats.is_empty():
+			stats_text += "📜 Requisitos de Atributo: "
+			var req_parts: Array = []
+			for req_key in item.req_stats.keys():
+				var req_val: int = item.req_stats[req_key]
+				var cur_val: int = player.attributes.get_stat_value(req_key) if player and player.attributes else 0
+				var status_tag: String = "🟢" if cur_val >= req_val else "🔴"
+				req_parts.append("%s %d %s" % [str(req_key).to_upper(), req_val, status_tag])
+			stats_text += ", ".join(req_parts) + "\n"
 
 	if item.hp_heal > 0:
 		stats_text += "❤️ Restaura %d HP  " % item.hp_heal

@@ -20,7 +20,15 @@ enum EquipSlot { NONE, WEAPON, SHIELD, HELMET, ARMOR, PANTS, BOOTS, GLOVES, RING
 @export var price_eons: int = 100        # Preço de compra em Éons na Loja NPC
 @export var max_durability: int = 50      # Durabilidade Máxima
 @export var current_durability: int = 50  # Durabilidade Atual
+@export var upgrade_level: int = 0        # Nível de Refinamento (+0 a +9)
+@export var req_stats: Dictionary = {}    # Requisitos de Atributos para equipar (STR, AGI, INT, DEX, VIT, LUK)
 @export var icon_color: Color = Color.WHITE
+
+## Retorna o nome formatado exibindo o nível de refinamento se houver
+func get_display_name() -> String:
+	if upgrade_level > 0 and item_type == ItemType.EQUIPMENT:
+		return "+%d %s" % [upgrade_level, name]
+	return name
 
 ## Retorna a durabilidade máxima padrão para a raridade do equipamento
 func get_default_durability_for_rarity() -> int:
@@ -31,17 +39,29 @@ func get_default_durability_for_rarity() -> int:
 		Rarity.GALACTIC: return 200
 	return 50
 
-## Retorna os atributos efetivos considerando se o item está quebrado (durabilidade 0 = perda de 80% dos stats)
+## Retorna os atributos efetivos considerando refinamento (+0 a +9) e se o item está quebrado (durabilidade 0 = 80% loss)
 func get_effective_stats() -> Dictionary:
 	if item_type != ItemType.EQUIPMENT:
 		return {}
 		
 	var eff_stats: Dictionary = {}
-	var mult: float = 0.20 if current_durability <= 0 else 1.0
+	var dur_mult: float = 0.20 if current_durability <= 0 else 1.0
+	
+	# Bônus percentual por refinamento:
+	# +1 a +6 (Jewel of Simplicity): +0.8333% por nível (total +5.0% no +6)
+	# +7 a +9 (Jewel of Ethrel): +1.6666% por nível adicionais (total +10.0% no +9)
+	var upgrade_pct: float = 0.0
+	if upgrade_level > 0:
+		if upgrade_level <= 6:
+			upgrade_pct = upgrade_level * 0.008333
+		else:
+			upgrade_pct = 0.05 + (upgrade_level - 6) * 0.016666
+			
+	var total_mult: float = (1.0 + upgrade_pct) * dur_mult
 	
 	for stat_key in stats_bonus.keys():
 		var base_val: int = stats_bonus[stat_key]
-		eff_stats[stat_key] = int(round(float(base_val) * mult))
+		eff_stats[stat_key] = max(1, int(round(float(base_val) * total_mult)))
 		
 	return eff_stats
 
@@ -157,75 +177,82 @@ static func create_item(item_id: String, item_rarity: Rarity = Rarity.COMMON) ->
 
 		"sword":
 			item.name = "Lâmina do Caçador"
-			item.description = "Uma espada afiada forjada com aço temperado. Aumenta o poder de ataque."
+			item.description = "Uma espada afiada forjada com aço temperado (Classe Drakenyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.WEAPON
 			item.weight = 4.5
 			item.max_stack = 1
 			item.price_eons = 250
 			item.stats_bonus = {"atk": int(22.0 * mult), "str": int(3.0 * mult)}
+			item.req_stats = {"str": int(10.0 * mult)}
 			item.icon_color = Color(0.85, 0.85, 0.95)
 
 		"shield":
 			item.name = "Escudo Guardião"
-			item.description = "Um pesado escudo de metal usado por cavaleiros experientes."
+			item.description = "Um pesado escudo de metal usado por cavaleiros experientes (Classe Drakenyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.SHIELD
 			item.weight = 6.0
 			item.max_stack = 1
 			item.price_eons = 200
 			item.stats_bonus = {"hard_def": int(10.0 * mult), "vit": int(4.0 * mult)}
+			item.req_stats = {"vit": int(8.0 * mult), "str": int(5.0 * mult)}
 			item.icon_color = Color(0.7, 0.75, 0.8)
 
 		"helmet":
 			item.name = "Capacete de Aço"
-			item.description = "Protege a cabeça contra golpes físicos pesados."
+			item.description = "Protege a cabeça contra golpes físicos pesados (Classe Drakenyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.HELMET
 			item.weight = 2.5
 			item.max_stack = 1
 			item.price_eons = 150
 			item.stats_bonus = {"hard_def": int(6.0 * mult), "str": int(1.0 * mult)}
+			item.req_stats = {"str": int(6.0 * mult)}
 
 		"armor":
 			item.name = "Armadura de Ferro Iniciante"
-			item.description = "Armadura de ferro forjada para novos aventureiros."
+			item.description = "Armadura de ferro forjada para novos aventureiros (Classe Drakenyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.ARMOR
 			item.weight = 8.0
 			item.max_stack = 1
 			item.price_eons = 350
 			item.stats_bonus = {"hard_def": int(16.0 * mult), "vit": int(5.0 * mult)}
+			item.req_stats = {"str": int(12.0 * mult), "vit": int(10.0 * mult)}
 
 		"pants":
 			item.name = "Calça Tática de Couro"
-			item.description = "Garante flexibilidade e proteção para as pernas."
+			item.description = "Garante flexibilidade e proteção para as pernas (Classe Birdyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.PANTS
 			item.weight = 3.0
 			item.max_stack = 1
 			item.price_eons = 220
 			item.stats_bonus = {"hard_def": int(7.0 * mult), "agi": int(2.0 * mult)}
+			item.req_stats = {"agi": int(8.0 * mult)}
 
 		"boots":
 			item.name = "Botas de Mercenário"
-			item.description = "Aumenta a velocidade de esquiva e agilidade do usuário."
+			item.description = "Aumenta a velocidade de esquiva e agilidade do usuário (Classe Birdyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.BOOTS
 			item.weight = 1.5
 			item.max_stack = 1
 			item.price_eons = 180
 			item.stats_bonus = {"agi": int(4.0 * mult), "flee": int(8.0 * mult)}
+			item.req_stats = {"agi": int(10.0 * mult)}
 
 		"gloves":
 			item.name = "Luvas do Combate"
-			item.description = "Reforça a precisão dos golpes com a arma."
+			item.description = "Reforça a precisão dos golpes com a arma (Classe Birdyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.GLOVES
 			item.weight = 1.0
 			item.max_stack = 1
 			item.price_eons = 150
 			item.stats_bonus = {"dex": int(3.0 * mult), "hit": int(10.0 * mult)}
+			item.req_stats = {"dex": int(8.0 * mult), "agi": int(5.0 * mult)}
 
 		"ring":
 			item.name = "Anel do Vento Astral"
@@ -236,16 +263,18 @@ static func create_item(item_id: String, item_rarity: Rarity = Rarity.COMMON) ->
 			item.max_stack = 1
 			item.price_eons = 500
 			item.stats_bonus = {"agi": int(4.0 * mult), "dex": int(3.0 * mult), "aspd": int(3.0 * mult)}
+			item.req_stats = {"agi": int(8.0 * mult), "dex": int(5.0 * mult)}
 
 		"earring":
 			item.name = "Brinco da Sabedoria"
-			item.description = "Um brinco encantado que eleva a inteligência e energia espiritual."
+			item.description = "Um brinco encantado que eleva a inteligência e energia espiritual (Classe Nekunyel)."
 			item.item_type = ItemType.EQUIPMENT
 			item.equip_slot = EquipSlot.EARRING
 			item.weight = 0.3
 			item.max_stack = 1
 			item.price_eons = 500
 			item.stats_bonus = {"int_stat": int(5.0 * mult), "matk": int(15.0 * mult)}
+			item.req_stats = {"int_stat": int(12.0 * mult)}
 
 		"necklace":
 			item.name = "Colar da Vida Eterna"
@@ -256,6 +285,25 @@ static func create_item(item_id: String, item_rarity: Rarity = Rarity.COMMON) ->
 			item.max_stack = 1
 			item.price_eons = 550
 			item.stats_bonus = {"vit": int(4.0 * mult), "hard_def": int(5.0 * mult)}
+			item.req_stats = {"vit": int(8.0 * mult)}
+
+		"jewel_simplicity":
+			item.name = "Jewel of Simplicity"
+			item.description = "Joia mística reluzente. Refina equipamentos de +0 até +6 (+0.83% atributos por nível)."
+			item.item_type = ItemType.CONSUMABLE
+			item.weight = 0.2
+			item.max_stack = 99
+			item.price_eons = 300
+			item.icon_color = Color(1.0, 0.82, 0.2)
+
+		"jewel_ethrel":
+			item.name = "Jewel of Ethrel"
+			item.description = "Joia lendária pulsando com energia etérea. Refina equipamentos de +6 até +9 (+1.66% atributos por nível)."
+			item.item_type = ItemType.CONSUMABLE
+			item.weight = 0.2
+			item.max_stack = 99
+			item.price_eons = 850
+			item.icon_color = Color(0.85, 0.35, 1.0)
 
 		"wings":
 			item.name = "Asas do Arcanjo Cósmico"

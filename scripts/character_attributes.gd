@@ -73,6 +73,17 @@ signal exp_changed(current_base_exp: int, max_base_exp: int, current_job_exp: in
 		recalculate_stats()
 		emit_signal("attributes_changed")
 
+## Retorna o valor atual total (base + bônus de equipamentos) de um atributo
+func get_stat_value(stat_key: String) -> int:
+	match stat_key.to_lower():
+		"str": return str + equipment_bonuses.get("str", 0)
+		"agi": return agi + equipment_bonuses.get("agi", 0)
+		"vit": return vit + equipment_bonuses.get("vit", 0)
+		"int", "int_stat": return int_stat + equipment_bonuses.get("int_stat", 0)
+		"dex": return dex + equipment_bonuses.get("dex", 0)
+		"luk": return luk + equipment_bonuses.get("luk", 0)
+	return 0
+
 ## Status Derivados (Calculados Automatizados)
 var max_hp: int = 100
 var max_sp: int = 50
