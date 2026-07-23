@@ -1,7 +1,7 @@
 extends CharacterBody3D
 class_name Player
 
-@export var move_speed: float = 8.0
+@export var move_speed: float = 4.8
 @export var rotation_speed: float = 14.0
 @export var attack_range: float = 1.8
 @export var attributes: CharacterAttributes = null
@@ -30,7 +30,19 @@ var spawn_origin: Vector3 = Vector3.ZERO
 @onready var hand_right: Node3D = get_node_or_null("VisualMesh/HandRight") as Node3D
 @onready var weapon_sword: Node3D = get_node_or_null("VisualMesh/HandRight/WeaponSword") as Node3D
 
+@onready var model_idle: Node3D = get_node_or_null("VisualMesh/ModelIdle") as Node3D
+@onready var model_walk: Node3D = get_node_or_null("VisualMesh/ModelWalk") as Node3D
+@onready var model_die: Node3D = get_node_or_null("VisualMesh/ModelDie") as Node3D
+
 var walk_anim_time: float = 0.0
+
+# Sistema de Animação 3D (GLTF AnimationPlayer)
+var anim_player: AnimationPlayer = null
+var idle_anim_player: AnimationPlayer = null
+var die_anim_player: AnimationPlayer = null
+var walk_anim_name: String = ""
+var idle_anim_name: String = ""
+var die_anim_name: String = ""
 
 # Sistema de Inventário
 var inventory: InventoryManager = null
@@ -56,11 +68,88 @@ func _ready() -> void:
 	floor_snap_length = 0.5
 	floor_max_angle = deg_to_rad(55.0)
 	
+	_find_model_animation_player()
+
 	# Inicializar Inventário com itens de teste cobrindo todas as raridades
 	inventory = InventoryManager.new()
 	inventory.player_ref = self
 	_add_starter_items()
 	update_weapon_visuals()
+
+func _find_model_animation_player() -> void:
+	if visual_mesh:
+		if not model_walk:
+			model_walk = visual_mesh.get_node_or_null("ModelWalk") as Node3D
+		if not model_idle:
+			model_idle = visual_mesh.get_node_or_null("ModelIdle") as Node3D
+			if not model_idle:
+				model_idle = visual_mesh.get_node_or_null("CharacterModel") as Node3D
+		if not model_die:
+			model_die = visual_mesh.get_node_or_null("ModelDie") as Node3D
+
+		# Configurar AnimationPlayer do modelo de Caminhada (catwalk.glb)
+		var target_node = model_walk if model_walk else visual_mesh
+		anim_player = target_node.find_child("AnimationPlayer", true, false) as AnimationPlayer
+		if not anim_player and visual_mesh:
+			anim_player = visual_mesh.find_child("AnimationPlayer", true, false) as AnimationPlayer
+
+		if anim_player:
+			var anim_list = anim_player.get_animation_list()
+			print("🎭 AnimationPlayer (Walk) encontrado! Animações: ", anim_list)
+			for anim in anim_list:
+				var lower_name = anim.to_lower()
+				if "walk" in lower_name or "catwalk" in lower_name or "andar" in lower_name or "run" in lower_name or "correr" in lower_name:
+					walk_anim_name = anim
+				elif "idle" in lower_name or "parado" in lower_name or "stand" in lower_name:
+					idle_anim_name = anim
+			if walk_anim_name.is_empty() and anim_list.size() > 0:
+				walk_anim_name = anim_list[0]
+
+			# Configurar o Modo de Loop Contínuo (LOOP_LINEAR) para eliminar saltos visuais
+			if not walk_anim_name.is_empty() and anim_player.has_animation(walk_anim_name):
+				var anim_res = anim_player.get_animation(walk_anim_name)
+				if anim_res:
+					anim_res.loop_mode = Animation.LOOP_LINEAR
+
+		# Configurar AnimationPlayer do modelo Parado (idle.glb)
+		if model_idle:
+			idle_anim_player = model_idle.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if idle_anim_player:
+				var i_list = idle_anim_player.get_animation_list()
+				print("🎭 AnimationPlayer (Idle) encontrado! Animações: ", i_list)
+				var i_name: String = ""
+				for a in i_list:
+					var l_a = a.to_lower()
+					if "idle" in l_a or "parado" in l_a or "stand" in l_a:
+						i_name = a
+						break
+				if i_name.is_empty() and i_list.size() > 0:
+					i_name = i_list[0]
+				if not i_name.is_empty() and idle_anim_player.has_animation(i_name):
+					var i_res = idle_anim_player.get_animation(i_name)
+					if i_res:
+						i_res.loop_mode = Animation.LOOP_LINEAR
+					idle_anim_player.play(i_name)
+
+		# Configurar AnimationPlayer do modelo de Morte (die.glb)
+		if model_die:
+			die_anim_player = model_die.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if die_anim_player:
+				var d_list = die_anim_player.get_animation_list()
+				print("🎭 AnimationPlayer (Die) encontrado! Animações: ", d_list)
+				var d_name: String = ""
+				for d in d_list:
+					var l_d = d.to_lower()
+					if "die" in l_d or "morte" in l_d or "death" in l_d:
+						d_name = d
+						break
+				if d_name.is_empty() and d_list.size() > 0:
+					d_name = d_list[0]
+				die_anim_name = d_name
+				if not die_anim_name.is_empty() and die_anim_player.has_animation(die_anim_name):
+					var d_res = die_anim_player.get_animation(die_anim_name)
+					if d_res:
+						d_res.loop_mode = Animation.LOOP_NONE
 
 func update_weapon_visuals() -> void:
 	var weapon_node = get_node_or_null("VisualMesh/HandRight/WeaponSword")
@@ -252,8 +341,10 @@ func _physics_process(delta: float) -> void:
 	if target_mob and is_instance_valid(target_mob) and not target_mob.is_dead:
 		var dist_to_mob: float = Vector2(global_position.x, global_position.z).distance_to(Vector2(target_mob.global_position.x, target_mob.global_position.z))
 		
+		var effective_attack_range: float = attack_range + (1.6 if target_mob.is_boss else 0.0)
+		
 		# Se estiver fora do alcance de ataque, aproxima-se do mob
-		if dist_to_mob > attack_range:
+		if dist_to_mob > effective_attack_range:
 			if not is_moving or waypoint_queue.is_empty():
 				set_move_target(target_mob.global_position)
 		else:
@@ -312,12 +403,28 @@ func _physics_process(delta: float) -> void:
 					rotation.y = lerp_angle(rotation.y, target_angle, delta * rotation_speed)
 	move_and_slide()
 
-	# Animação Procedural de Caminhada (Balanço de Pés, Mãos e Bobbing Vertical)
-	# Se o personagem estiver travado contra uma parede (velocidade real 2D muito baixa), pausa a animação sem cancelar os waypoints
+	# Animação de Caminhada: Alternância Dinâmica entre Modelo Idle (Original) e Modelo Walk (catwalk.glb em Loop)
 	var actual_speed_2d := Vector2(velocity.x, velocity.z).length()
 	var is_stuck_on_wall: bool = is_on_wall() and actual_speed_2d < 0.2
+	var is_actually_walking: bool = is_moving and not is_stuck_on_wall and actual_speed_2d > 0.05
 
-	if is_moving and not is_stuck_on_wall and actual_speed_2d > 0.05:
+	if is_actually_walking:
+		if model_idle: model_idle.visible = false
+		if model_walk: model_walk.visible = true
+		if anim_player and not walk_anim_name.is_empty():
+			if anim_player.current_animation != walk_anim_name or not anim_player.is_playing():
+				anim_player.play(walk_anim_name)
+	else:
+		if model_idle: model_idle.visible = true
+		if model_walk: model_walk.visible = false
+		if anim_player and anim_player.is_playing():
+			anim_player.stop()
+		if idle_anim_player and not idle_anim_player.is_playing():
+			var i_list = idle_anim_player.get_animation_list()
+			if i_list.size() > 0:
+				idle_anim_player.play(i_list[0])
+
+	if is_actually_walking:
 		walk_anim_time += delta * 12.0
 		var leg_swing: float = sin(walk_anim_time) * 0.18
 		var arm_swing: float = sin(walk_anim_time) * 0.14
@@ -327,14 +434,14 @@ func _physics_process(delta: float) -> void:
 		if feet_right: feet_right.position.z = 0.08 - leg_swing
 		if hand_left: hand_left.position.z = 0.15 - arm_swing
 		if hand_right: hand_right.position.z = 0.15 + arm_swing
-		if visual_mesh: visual_mesh.position.y = bob_y
+		if visual_mesh and not anim_player: visual_mesh.position.y = bob_y
 	else:
 		walk_anim_time = 0.0
 		if feet_left: feet_left.position.z = lerp(feet_left.position.z, 0.08, delta * 14.0)
 		if feet_right: feet_right.position.z = lerp(feet_right.position.z, 0.08, delta * 14.0)
 		if hand_left: hand_left.position.z = lerp(hand_left.position.z, 0.15, delta * 14.0)
 		if hand_right: hand_right.position.z = lerp(hand_right.position.z, 0.15, delta * 14.0)
-		if visual_mesh: visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, delta * 14.0)
+		if visual_mesh and not anim_player: visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, delta * 14.0)
 
 func _perform_attack(mob: Mob) -> void:
 	if not mob or not is_instance_valid(mob) or mob.is_dead:
@@ -462,9 +569,18 @@ func _die() -> void:
 	velocity = Vector3.ZERO
 	clear_target()
 	emit_signal("player_died")
-	
-	# Animação visual de queda (tombamento no chão)
-	if visual_mesh:
+
+	if model_idle: model_idle.visible = false
+	if model_walk: model_walk.visible = false
+	if model_die: model_die.visible = true
+
+	if anim_player and anim_player.is_playing():
+		anim_player.stop()
+
+	if die_anim_player and not die_anim_name.is_empty():
+		die_anim_player.play(die_anim_name)
+	elif visual_mesh:
+		# Fallback procedural se não houver die_anim_player
 		var tween = create_tween()
 		tween.set_parallel(true)
 		tween.tween_property(visual_mesh, "rotation:z", deg_to_rad(-85.0), 0.35)\
@@ -477,7 +593,18 @@ func respawn() -> void:
 	is_moving = false
 	velocity = Vector3.ZERO
 	clear_target()
-	
+
+	if model_die: model_die.visible = false
+	if model_walk: model_walk.visible = false
+	if model_idle: model_idle.visible = true
+
+	if die_anim_player and die_anim_player.is_playing():
+		die_anim_player.stop()
+	if idle_anim_player and not idle_anim_player.is_playing():
+		var i_list = idle_anim_player.get_animation_list()
+		if i_list.size() > 0:
+			idle_anim_player.play(i_list[0])
+
 	# Restaurar HP e SP
 	current_hp = attributes.max_hp if attributes else 100
 	current_sp = attributes.max_sp if attributes else 50

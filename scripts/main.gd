@@ -8,10 +8,14 @@ const ClickMarkerScene = preload("res://scenes/click_marker.tscn")
 const MobScene = preload("res://scenes/mob.tscn")
 const HUDControllerClass = preload("res://scripts/hud_controller.gd")
 
-# Sistema de Detecção de Clique Duplo
+# Sistema de Detecção de Clique Duplo e Movimento Contínuo
 var last_click_time: float = 0.0
 var last_clicked_mob: Mob = null
 const DOUBLE_CLICK_TIME: float = 0.35
+
+var is_lmb_pressed: bool = false
+var hold_click_timer: float = 0.0
+const HOLD_CLICK_INTERVAL: float = 0.06
 
 const NPCShopScene = preload("res://scenes/npc_shop.tscn")
 const NPCBlacksmithScene = preload("res://scenes/npc_blacksmith.tscn")
@@ -30,6 +34,17 @@ func _ready() -> void:
 	# Instanciar o NPC Vendedor e o Ferreiro próximo ao centro (livre de colisão)
 	_spawn_npc_merchant()
 	_spawn_npc_blacksmith()
+
+func _process(delta: float) -> void:
+	if is_lmb_pressed:
+		if Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+			hold_click_timer += delta
+			if hold_click_timer >= HOLD_CLICK_INTERVAL:
+				hold_click_timer = 0.0
+				var mouse_pos: Vector2 = get_viewport().get_mouse_position()
+				_handle_mouse_click(mouse_pos, true)
+		else:
+			is_lmb_pressed = false
 
 func _spawn_npc_merchant() -> void:
 	var npc = NPCShopScene.instantiate() as NPCShop
@@ -56,8 +71,7 @@ func _spawn_initial_map_mobs() -> void:
 		{"name": "Esporito 3D", "level": 12, "hp": 300, "pos": Vector3(-25, 0, -35), "aggr": false, "is_boss": false},
 		{"name": "Esqueleto Guerreiro", "level": 18, "hp": 450, "pos": Vector3(40, 0, -25), "aggr": true, "is_boss": false},
 		{"name": "Golem de Pedra", "level": 25, "hp": 750, "pos": Vector3(-45, 0, 45), "aggr": true, "is_boss": false},
-		{"name": "Poring Rei", "level": 15, "hp": 500, "pos": Vector3(38, 0, 38), "aggr": false, "is_boss": false},
-		{"name": "Saeron", "level": 35, "hp": 3500, "pos": Vector3(35, 3.0, -35), "aggr": true, "is_boss": true}
+		{"name": "Poring Rei", "level": 15, "hp": 500, "pos": Vector3(38, 0, 38), "aggr": false, "is_boss": false}
 	]
 
 	for info in extra_mobs_info:
@@ -103,6 +117,9 @@ func _spawn_new_mob(spawn_pos: Vector3, mob_info: Dictionary) -> void:
 	new_mob.attack_damage = mob_info.get("attack_damage", 12)
 	new_mob.attack_cooldown = mob_info.get("attack_cooldown", 1.5)
 	new_mob.is_boss = mob_info.get("is_boss", false)
+	if new_mob.is_boss:
+		new_mob.attack_range = 3.2
+		new_mob.detection_radius = 12.0
 	new_mob.spawn_origin = spawn_pos
 	new_mob.position = spawn_pos
 	
@@ -123,10 +140,12 @@ func _spawn_new_mob(spawn_pos: Vector3, mob_info: Dictionary) -> void:
 	new_mob._update_ui()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		_handle_mouse_click(event.position)
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		is_lmb_pressed = event.pressed
+		if event.pressed:
+			_handle_mouse_click(event.position, false)
 
-func _handle_mouse_click(screen_position: Vector2) -> void:
+func _handle_mouse_click(screen_position: Vector2, is_holding: bool = false) -> void:
 	if not camera3d or not player:
 		return
 		
@@ -166,22 +185,24 @@ func _handle_mouse_click(screen_position: Vector2) -> void:
 			_close_hud_npc_windows()
 			last_clicked_mob = null
 			player.lock_item_target(clicked_item)
-			_spawn_click_marker(clicked_item.global_position)
+			if not is_holding:
+				_spawn_click_marker(clicked_item.global_position)
 		elif clicked_npc:
 			last_clicked_mob = null
 			player.clear_target()
 			player.set_move_target(clicked_npc.global_position)
-			if clicked_npc.has_method("interact"):
-				clicked_npc.interact(player)
-			_spawn_click_marker(clicked_npc.global_position)
+			if not is_holding:
+				if clicked_npc.has_method("interact"):
+					clicked_npc.interact(player)
+				_spawn_click_marker(clicked_npc.global_position)
 		elif clicked_mob and not clicked_mob.is_dead:
 			_close_hud_npc_windows()
 			var is_double_click: bool = (clicked_mob == last_clicked_mob) and ((current_time - last_click_time) <= DOUBLE_CLICK_TIME)
 			
-			last_click_time = current_time
-			last_clicked_mob = clicked_mob
-			
-			player.lock_target(clicked_mob, is_double_click)
+			if not is_holding:
+				last_click_time = current_time
+				last_clicked_mob = clicked_mob
+				player.lock_target(clicked_mob, is_double_click)
 		else:
 			_close_hud_npc_windows()
 			last_clicked_mob = null
@@ -189,7 +210,8 @@ func _handle_mouse_click(screen_position: Vector2) -> void:
 			if result.has("position"):
 				var click_pos: Vector3 = result.position
 				player.set_move_target(click_pos)
-				_spawn_click_marker(click_pos)
+				if not is_holding:
+					_spawn_click_marker(click_pos)
 
 func _close_hud_npc_windows() -> void:
 	var hud_nodes = get_tree().get_nodes_in_group("hud")

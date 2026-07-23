@@ -1,22 +1,22 @@
 # Arquitetura Técnica e Contexto do Projeto (CONTEXT.md)
 
-Este documento descreve a arquitetura interna, o fluxo de execução, as fórmulas matemáticas e as decisões de design técnico do projeto **Aeon Fantasy**.
+Este documento descreve a arquitetura interna, o fluxo de execução, os sistemas de animação GLTF/GLB e as decisões de design técnico do projeto **Aeon Fantasy**.
 
 ---
 
 ## 🛠️ Visão Geral da Arquitetura
 
-O projeto utiliza uma arquitetura modular orientada a objetos na **Godot Engine 4**, combinando física 3D (`CharacterBody3D`, `StaticBody3D`), rotação livre de câmera 360º (`CameraController`), interface 2D (`CanvasLayer`, `Control`), e cálculo em tempo real de estatísticas MMORPG inspiradas em *Ragnarok Online* e *MU Online*.
+O projeto utiliza uma arquitetura modular na **Godot Engine 4**, integrando física 3D (`CharacterBody3D`, `StaticBody3D`), rotação de câmera 360º (`CameraController`), praça central Safe Zone, troca dinâmica de modelos 3D com animação esquelética, interface 2D (`CanvasLayer`, `Control`), e estatísticas em tempo real inspiradas em *Ragnarok Online* e *MU Online*.
 
 ```mermaid
 graph TD
     Main[main.gd / Scene Root] --> CameraRig[camera_controller.gd / 360° RMB Drag Camera]
-    Main --> Player[player.gd / Smooth Stair Navigation & 3D Character]
-    Player --> CharacterModel[VisualMesh/CharacterModel / fantasy character 3d model.glb]
-    Player --> SwordSlash[WeaponSword / -45° to +65° Slash Arc Tween]
-    Main --> SaeronBoss[mob.gd / Label3D Y=2.85m No Depth Test]
-    HUD[hud_controller.gd] --> SellConfirmDialog[sell_confirm_window / Confirmation Modal]
-    HUD --> DamagePopup[damage_popup.gd / Node3D]
+    Main --> Player[player.gd / Hold-to-Move & Dual GLTF Models]
+    Player --> ModelIdle[VisualMesh/ModelIdle / idle.glb]
+    Player --> ModelWalk[VisualMesh/ModelWalk / catwalk.glb LOOP_LINEAR]
+    Player --> ModelDie[VisualMesh/ModelDie / die.glb LOOP_NONE]
+    Main --> SafeZone[CobblestonePlaza & SafeZoneFences / 4 Gates & Lanterns]
+    HUD[hud_controller.gd / 5x3 Symmetrical Equipment Grid] --> DamagePopup[damage_popup.gd]
 ```
 
 ---
@@ -30,14 +30,22 @@ graph TD
   - **Sensibilidade**: `mouse_sensitivity = 0.005` rad/px.
   - **Teclas Auxiliares**: `Q` / `E` para rotação em $90^\circ$ e `R` para reset instantâneo a $45^\circ$.
 
-### 2. Personagem 3D (`assets/fantasy character 3d model.glb`)
-- **Malha 3D e Escala**: Instanciada em `NavigationRegion3D/Player/VisualMesh/CharacterModel` com escala $2.6\times$ e offset de $-1.2\text{m}$ no eixo Y.
+### 2. Personagem 3D & Gerenciador de Animações GLB (`scripts/player.gd`)
+- **Sistema de Modelos Triplo GLB**:
+  - `ModelIdle` (`assets/idle.glb`): Exibido quando parado (`is_moving == false`).
+  - `ModelWalk` (`assets/catwalk.glb`): Exibido durante o movimento (`is_moving == true`). Configurado com `Animation.LOOP_LINEAR` para eliminação de saltos visuais.
+  - `ModelDie` (`assets/die.glb`): Exibido ao zerar o HP (`is_dead == true`) com `Animation.LOOP_NONE`.
+- **Movimentação Contínua (Hold-to-Move)**:
+  - `is_lmb_pressed` no `main.gd` escuta a pressão contínua do botão esquerdo e emite `_handle_mouse_click` a cada $60\text{ms}$, permitindo navegação fluida sem spam do marcador de destino no chão.
 - **Forma de Colisão**: `CapsuleShape3D` com raio de $0.6\text{m}$ e altura de $2.4\text{m}$.
-- **Animações Procedurais e Espada**:
-  - `walk_anim_time`: Bobbing vertical do nó `VisualMesh` durante o movimento.
-  - `WeaponSword`: Acoplada ao nó `HandRight` com rotação de golpe de $-45^\circ$ a $+65^\circ$ durante ataques.
 
-### 3. `scripts/mob.gd` (Rótulo 3D Flutuante do Boss)
-- **Elevação e no_depth_test**:
-  - `hp_label.position = Vector3(0, 2.85, 0)` quando `is_boss == true`.
-  - Configurado com `no_depth_test = true` e `billboard = BILLBOARD_ENABLED`, impedindo clipping com a malha $2.5\times$ maior do Boss e mantendo o rótulo legível flutuando acima da cabeça em qualquer ângulo 3D.
+### 3. Safe Zone & Cidade Central (`scenes/main.tscn`)
+- **Piso de Paralelepípedo (`CobblestonePlaza`)**: Malha `PlaneMesh` de $21\text{m} \times 19\text{m}$ com material de rocha.
+- **Cercas e Portões**: 
+  - `scenes/fence_wood.tscn`: Segmentos de cerca de madeira com física `StaticBody3D`.
+  - `scenes/fence_post_gate.tscn`: Postes de portão com topo dourado e `OmniLight3D` lanterna quente.
+  - Fechamento geométrico perfeito nos 4 cantos (`X = ±10.5m`, `Z = ±9.5m`).
+
+### 4. `scripts/hud_controller.gd` (Interface & Equipamentos)
+- **Grade 5x3 Simétrica de Equipamentos**: 15 slots organizados simetricamente no painel de equipamentos.
+- **Preenchimento Inicial de Barras**: `bar_hp`, `bar_sp`, `bar_base_exp` e `bar_job_exp` inicializam preenchidos ao carregar o nó do jogador.

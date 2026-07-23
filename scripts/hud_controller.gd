@@ -103,16 +103,18 @@ func _process(_delta: float) -> void:
 		minimap_draw_node.queue_redraw()
 
 func _find_player_and_connect() -> void:
-	await get_tree().process_frame
-	var players = get_tree().get_nodes_in_group("players")
-	if players.size() > 0:
-		player = players[0] as Player
-		if player:
-			attributes = player.attributes
-			_connect_signals()
-			if player.inventory:
-				_on_currency_changed(player.inventory.eons, player.inventory.astris)
-			return
+	for i in range(10):
+		await get_tree().process_frame
+		var players = get_tree().get_nodes_in_group("players")
+		if players.size() > 0:
+			player = players[0] as Player
+			if player:
+				attributes = player.attributes
+				_connect_signals()
+				_update_all_ui()
+				if player.inventory:
+					_on_currency_changed(player.inventory.eons, player.inventory.astris)
+				return
 
 func _connect_signals() -> void:
 	if player:
@@ -274,6 +276,8 @@ func _create_ui_layout() -> void:
 	bar_hp.custom_minimum_size = Vector2(0, 20)
 	bar_hp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar_hp.show_percentage = false
+	bar_hp.max_value = 100
+	bar_hp.value = 100
 	_apply_bar_style(bar_hp, Color(0.2, 0.8, 0.3), Color(0.1, 0.2, 0.12))
 	hp_box.add_child(bar_hp)
 
@@ -300,6 +304,8 @@ func _create_ui_layout() -> void:
 	bar_sp.custom_minimum_size = Vector2(0, 18)
 	bar_sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar_sp.show_percentage = false
+	bar_sp.max_value = 50
+	bar_sp.value = 50
 	_apply_bar_style(bar_sp, Color(0.15, 0.55, 0.95), Color(0.08, 0.15, 0.25))
 	sp_box.add_child(bar_sp)
 
@@ -326,6 +332,8 @@ func _create_ui_layout() -> void:
 	bar_base_exp.custom_minimum_size = Vector2(0, 14)
 	bar_base_exp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar_base_exp.show_percentage = false
+	bar_base_exp.max_value = 100
+	bar_base_exp.value = 0
 	_apply_bar_style(bar_base_exp, Color(0.9, 0.75, 0.15), Color(0.2, 0.18, 0.05))
 	base_exp_box.add_child(bar_base_exp)
 
@@ -352,6 +360,8 @@ func _create_ui_layout() -> void:
 	bar_job_exp.custom_minimum_size = Vector2(0, 14)
 	bar_job_exp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	bar_job_exp.show_percentage = false
+	bar_job_exp.max_value = 80
+	bar_job_exp.value = 0
 	_apply_bar_style(bar_job_exp, Color(0.7, 0.3, 0.85), Color(0.18, 0.08, 0.22))
 	job_exp_box.add_child(bar_job_exp)
 
@@ -652,9 +662,12 @@ func _build_inventory_window(root_control: Control) -> void:
 	tab_btn_equip.pressed.connect(_switch_to_equip_tab)
 	hbox_tabs.add_child(tab_btn_equip)
 
+	var tab_spacer := Control.new()
+	tab_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hbox_tabs.add_child(tab_spacer)
+
 	var btn_close_inv := Button.new()
 	btn_close_inv.text = " X "
-	btn_close_inv.size_flags_horizontal = Control.SIZE_SHRINK_END
 	btn_close_inv.pressed.connect(func(): inv_window.visible = false)
 	hbox_tabs.add_child(btn_close_inv)
 
@@ -772,14 +785,15 @@ func _build_inventory_window(root_control: Control) -> void:
 
 	var grid_doll := GridContainer.new()
 	grid_doll.columns = 3
-	grid_doll.add_theme_constant_override("h_separation", 10)
-	grid_doll.add_theme_constant_override("v_separation", 8)
+	grid_doll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	grid_doll.add_theme_constant_override("h_separation", 8)
+	grid_doll.add_theme_constant_override("v_separation", 6)
 	equip_container.add_child(grid_doll)
 
-	# Mapeamento visual das 3 colunas do Paper Doll
-	# Coluna Esquerda: Arma, Armadura, Calça, Botas
-	# Coluna Meio: Capacete, Colar, Asas, Pet
-	# Coluna Direita: Escudo, Luvas, Anel 1, Anel 2, Brinco
+	# Mapeamento visual das 3 colunas do Paper Doll (5 Linhas x 3 Colunas = 15 células)
+	# Coluna Esquerda: Arma, Armadura, Calça, Botas, [Vazio]
+	# Coluna Meio: Capacete, Colar, Asas, Pet, Brinco
+	# Coluna Direita: Escudo, Luvas, Anel 1, Anel 2, [Vazio]
 	var doll_slots_layout = [
 		{"key": "weapon", "name": "⚔️ Arma"},
 		{"key": "helmet", "name": "🪖 Capacete"},
@@ -795,35 +809,32 @@ func _build_inventory_window(root_control: Control) -> void:
 		
 		{"key": "boots", "name": "🥾 Botas"},
 		{"key": "pet", "name": "🐾 Pet"},
-		{"key": "ring_2", "name": "💍 Anel 2"}
+		{"key": "ring_2", "name": "💍 Anel 2"},
+		
+		{"key": "", "name": ""},
+		{"key": "earring", "name": "👂 Brinco"},
+		{"key": "", "name": ""}
 	]
 
 	equip_slot_buttons.clear()
 	for slot_info in doll_slots_layout:
 		var eq_key: String = slot_info["key"]
-		var btn_eq := Button.new()
-		btn_eq.custom_minimum_size = Vector2(118, 56)
-		btn_eq.text = slot_info["name"]
-		btn_eq.add_theme_font_size_override("font_size", 11)
-		
-		btn_eq.pressed.connect(func(): _on_equip_slot_clicked(eq_key))
-		btn_eq.gui_input.connect(func(ev: InputEvent): _on_equip_slot_gui_input(ev, eq_key))
-		grid_doll.add_child(btn_eq)
-		equip_slot_buttons[eq_key] = btn_eq
-
-	# Adicionar o 13º slot (Brinco) centralizado na parte inferior
-	var hbox_earring := HBoxContainer.new()
-	hbox_earring.alignment = BoxContainer.ALIGNMENT_CENTER
-	equip_container.add_child(hbox_earring)
-
-	var btn_earring := Button.new()
-	btn_earring.custom_minimum_size = Vector2(130, 48)
-	btn_earring.text = "👂 Brinco"
-	btn_earring.add_theme_font_size_override("font_size", 11)
-	btn_earring.pressed.connect(func(): _on_equip_slot_clicked("earring"))
-	btn_earring.gui_input.connect(func(ev: InputEvent): _on_equip_slot_gui_input(ev, "earring"))
-	hbox_earring.add_child(btn_earring)
-	equip_slot_buttons["earring"] = btn_earring
+		if eq_key.is_empty():
+			var dummy := Control.new()
+			dummy.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			dummy.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			grid_doll.add_child(dummy)
+		else:
+			var btn_eq := Button.new()
+			btn_eq.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+			btn_eq.custom_minimum_size = Vector2(0, 48)
+			btn_eq.text = slot_info["name"]
+			btn_eq.add_theme_font_size_override("font_size", 11)
+			
+			btn_eq.pressed.connect(func(): _on_equip_slot_clicked(eq_key))
+			btn_eq.gui_input.connect(func(ev: InputEvent): _on_equip_slot_gui_input(ev, eq_key))
+			grid_doll.add_child(btn_eq)
+			equip_slot_buttons[eq_key] = btn_eq
 
 	var hs_main := HSeparator.new()
 	vbox_main.add_child(hs_main)
@@ -981,26 +992,26 @@ func _on_player_hp_changed(current: int, max_val: int) -> void:
 	if bar_hp and lbl_hp:
 		bar_hp.max_value = max_val
 		bar_hp.value = current
-		lbl_hp.text = "HP: %d / %d" % [current, max_val]
+		lbl_hp.text = "%d / %d" % [current, max_val]
 
 func _on_player_sp_changed(current: int, max_val: int) -> void:
 	if bar_sp and lbl_sp:
 		bar_sp.max_value = max_val
 		bar_sp.value = current
-		lbl_sp.text = "SP: %d / %d" % [current, max_val]
+		lbl_sp.text = "%d / %d" % [current, max_val]
 
 func _on_exp_changed(current_base: int, max_base: int, current_job: int, max_job: int) -> void:
 	if bar_base_exp and lbl_base_exp:
 		bar_base_exp.max_value = max_base
 		bar_base_exp.value = current_base
 		var pct_base: float = (float(current_base) / float(max_base)) * 100.0 if max_base > 0 else 0.0
-		lbl_base_exp.text = "BASE EXP: %d / %d (%.1f%%)" % [current_base, max_base, pct_base]
+		lbl_base_exp.text = "%d / %d (%.1f%%)" % [current_base, max_base, pct_base]
 
 	if bar_job_exp and lbl_job_exp:
 		bar_job_exp.max_value = max_job
 		bar_job_exp.value = current_job
 		var pct_job: float = (float(current_job) / float(max_job)) * 100.0 if max_job > 0 else 0.0
-		lbl_job_exp.text = "JOB EXP: %d / %d (%.1f%%)" % [current_job, max_job, pct_job]
+		lbl_job_exp.text = "%d / %d (%.1f%%)" % [current_job, max_job, pct_job]
 
 func _on_inventory_updated() -> void:
 	_update_inventory_ui()
