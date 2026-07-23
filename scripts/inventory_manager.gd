@@ -252,6 +252,20 @@ func equip_item_from_slot(slot_idx: int) -> bool:
 		player_ref.update_weapon_visuals()
 	return true
 
+## Equipa um item diretamente no personagem por código
+func equip_item_directly(item: ItemData) -> bool:
+	if not item or item.item_type != ItemData.ItemType.EQUIPMENT or item.equip_slot == ItemData.EquipSlot.NONE:
+		return false
+	var target_key: String = _get_target_equip_key(item.equip_slot)
+	if target_key == "":
+		return false
+	equipped_items[target_key] = item
+	_emit_updates()
+	emit_signal("equipment_changed")
+	if player_ref and is_instance_valid(player_ref) and player_ref.has_method("update_weapon_visuals"):
+		player_ref.update_weapon_visuals()
+	return true
+
 ## Refina um equipamento usando uma joia (Jewel of Simplicity +0~+6 | Jewel of Ethrel +6~+9)
 func apply_jewel_to_item(jewel_slot_idx: int, target_slot_idx: int) -> Dictionary:
 	if jewel_slot_idx < 0 or jewel_slot_idx >= max_slots or target_slot_idx < 0 or target_slot_idx >= max_slots:

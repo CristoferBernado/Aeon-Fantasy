@@ -31,13 +31,19 @@ graph TD
   - **Teclas Auxiliares**: `Q` / `E` para rotação em $90^\circ$ e `R` para reset instantâneo a $45^\circ$.
 
 ### 2. Personagem 3D & Gerenciador de Animações GLB (`scripts/player.gd`)
-- **Sistema de Modelos Triplo GLB**:
-  - `ModelIdle` (`assets/idle.glb`): Exibido quando parado (`is_moving == false`).
-  - `ModelWalk` (`assets/catwalk.glb`): Exibido durante o movimento (`is_moving == true`). Configurado com `Animation.LOOP_LINEAR` para eliminação de saltos visuais.
-  - `ModelDie` (`assets/die.glb`): Exibido ao zerar o HP (`is_dead == true`) com `Animation.LOOP_NONE`.
-- **Movimentação Contínua (Hold-to-Move)**:
-  - `is_lmb_pressed` no `main.gd` escuta a pressão contínua do botão esquerdo e emite `_handle_mouse_click` a cada $60\text{ms}$, permitindo navegação fluida sem spam do marcador de destino no chão.
-- **Forma de Colisão**: `CapsuleShape3D` com raio de $0.6\text{m}$ e altura de $2.4\text{m}$.
+- **Sistema de Modelos Múltiplos GLB (Multi-Model State Machine)**:
+  - `ModelIdle` (`assets/idle.glb`): Exibido quando parado.
+  - `ModelWalk` (`assets/catwalk.glb`): Exibido durante o movimento (`LOOP_LINEAR`).
+  - `ModelDie` (`assets/die.glb`): Exibido ao zerar o HP (`LOOP_NONE`).
+  - `ModelAttackDrakunyel` (`assets/attackdrakunyel.glb`): Exibido ao realizar um ataque ao mob.
+  - `ModelHitDrakunyel` (`assets/hitdrakunyel.glb`): Exibido ao receber um golpe do mob.
+- **Ancoragem Dinâmica de Armas 3D (`fantasy+sword+3d+model.glb`)**:
+  - Item Galáctico `Fantasy Sword Emerald Pursuit` instanciado em 3D.
+  - **Fora de Ataque**: Acoplado ao nó `BackWeaponAnchor` nas costas do personagem em posição diagonal, com a ponta apontada para baixo.
+  - **Durante o Ataque**: Acoplado temporariamente à mão direita (`HandRight`) acompanhando o golpe da espada.
+- **Sistema de Combate Assíncrono e Individual**:
+  - Temporizadores de ataque independentes para o Jogador (`attributes.get_attack_delay()`) e para cada Mob (`attack_cooldown`).
+  - Vento-up inicial dinâmico para evitar acoplamento síncrono de acertos simultâneos no frame zero.
 
 ### 3. Safe Zone & Cidade Central (`scenes/main.tscn`)
 - **Piso de Paralelepípedo (`CobblestonePlaza`)**: Malha `PlaneMesh` de $21\text{m} \times 19\text{m}$ com material de rocha.

@@ -203,6 +203,24 @@ static func create_item(item_id: String, item_rarity: Rarity = Rarity.COMMON) ->
 			item.price_eons = 35
 			item.icon_color = Color(0.2, 0.5, 1.0)
 
+		"fantasy_sword_emerald_pursuit", "fantasy_sword_emerald":
+			item.name = "Fantasy Sword Emerald Pursuit"
+			item.description = "Uma espada lendária forjada com minério esmeralda galáctico. Canaliza a energia e perseguição dos grandes caçadores."
+			item.item_type = ItemType.EQUIPMENT
+			item.equip_slot = EquipSlot.WEAPON
+			item.weight = 4.8
+			item.max_stack = 1
+			item.price_eons = 3500
+			item.stats_bonus = {
+				"atk": int(58.0 * mult),
+				"str": int(8.0 * mult),
+				"agi": int(6.0 * mult),
+				"aspd": int(5.0 * mult),
+				"crit": int(5.0 * mult)
+			}
+			item.req_stats = {"str": int(10.0 * mult), "agi": int(8.0 * mult)}
+			item.icon_color = Color(0.1, 0.95, 0.45)
+
 		"sword":
 			item.name = "Lâmina do Caçador"
 			item.description = "Uma espada afiada forjada com aço temperado (Classe Drakenyel)."

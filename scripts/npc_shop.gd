@@ -21,6 +21,7 @@ var shop_catalog: Array = [
 	{"id": "boots", "rarity": ItemData.Rarity.COMMON, "price": 180},
 	{"id": "gloves", "rarity": ItemData.Rarity.COMMON, "price": 150},
 	# Armas & Escudos
+	{"id": "fantasy_sword_emerald_pursuit", "rarity": ItemData.Rarity.GALACTIC, "price": 3500},
 	{"id": "sword", "rarity": ItemData.Rarity.COMMON, "price": 250},
 	{"id": "shield", "rarity": ItemData.Rarity.COMMON, "price": 200},
 	# Joias de Refinamento (+0 a +9)

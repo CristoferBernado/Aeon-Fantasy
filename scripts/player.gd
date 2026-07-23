@@ -33,6 +33,13 @@ var spawn_origin: Vector3 = Vector3.ZERO
 @onready var model_idle: Node3D = get_node_or_null("VisualMesh/ModelIdle") as Node3D
 @onready var model_walk: Node3D = get_node_or_null("VisualMesh/ModelWalk") as Node3D
 @onready var model_die: Node3D = get_node_or_null("VisualMesh/ModelDie") as Node3D
+@onready var model_attack: Node3D = get_node_or_null("VisualMesh/ModelAttackDrakunyel") as Node3D
+@onready var model_hit: Node3D = get_node_or_null("VisualMesh/ModelHitDrakunyel") as Node3D
+@onready var back_weapon_anchor: Node3D = get_node_or_null("VisualMesh/BackWeaponAnchor") as Node3D
+@onready var espada_costas: Node3D = get_node_or_null("VisualMesh/BackWeaponAnchor/Espada_Costas") as Node3D
+@onready var espada_mao: Node3D = get_node_or_null("VisualMesh/HandRight/Espada_Mao") as Node3D
+
+var fantasy_sword_node: Node3D = null
 
 var walk_anim_time: float = 0.0
 
@@ -40,9 +47,17 @@ var walk_anim_time: float = 0.0
 var anim_player: AnimationPlayer = null
 var idle_anim_player: AnimationPlayer = null
 var die_anim_player: AnimationPlayer = null
+var attack_anim_player: AnimationPlayer = null
+var hit_anim_player: AnimationPlayer = null
+
 var walk_anim_name: String = ""
 var idle_anim_name: String = ""
 var die_anim_name: String = ""
+var attack_anim_name: String = ""
+var hit_anim_name: String = ""
+
+var action_anim_timer: float = 0.0
+var active_action_model: Node3D = null
 
 # Sistema de Inventário
 var inventory: InventoryManager = null
@@ -151,23 +166,138 @@ func _find_model_animation_player() -> void:
 					if d_res:
 						d_res.loop_mode = Animation.LOOP_NONE
 
+		# Configurar AnimationPlayer do modelo de Ataque (attackdrakunyel.glb)
+		if not model_attack and visual_mesh:
+			var atk_scene = load("res://assets/attackdrakunyel.glb") as PackedScene
+			if atk_scene:
+				model_attack = atk_scene.instantiate()
+				model_attack.name = "ModelAttackDrakunyel"
+				model_attack.transform = Transform3D(Vector3(2.6, 0, 0), Vector3(0, 2.6, 0), Vector3(0, 0, 2.6), Vector3(0, -1.2, 0))
+				model_attack.visible = false
+				visual_mesh.add_child(model_attack)
+
+		if model_attack:
+			attack_anim_player = model_attack.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if attack_anim_player:
+				var a_list = attack_anim_player.get_animation_list()
+				print("🎭 AnimationPlayer (Attack Drakunyel) encontrado! Animações: ", a_list)
+				if a_list.size() > 0:
+					attack_anim_name = a_list[0]
+					for a in a_list:
+						var lower = a.to_lower()
+						if "attack" in lower or "hit" in lower or "drakunyel" in lower or "golpe" in lower or "atk" in lower:
+							attack_anim_name = a
+							break
+					var anim_res = attack_anim_player.get_animation(attack_anim_name)
+					if anim_res:
+						anim_res.loop_mode = Animation.LOOP_NONE
+
+		# Configurar AnimationPlayer do modelo de Dano Recebido (hitdrakunyel.glb)
+		if not model_hit and visual_mesh:
+			var hit_scene = load("res://assets/hitdrakunyel.glb") as PackedScene
+			if hit_scene:
+				model_hit = hit_scene.instantiate()
+				model_hit.name = "ModelHitDrakunyel"
+				model_hit.transform = Transform3D(Vector3(2.6, 0, 0), Vector3(0, 2.6, 0), Vector3(0, 0, 2.6), Vector3(0, -1.2, 0))
+				model_hit.visible = false
+				visual_mesh.add_child(model_hit)
+
+		if model_hit:
+			hit_anim_player = model_hit.find_child("AnimationPlayer", true, false) as AnimationPlayer
+			if hit_anim_player:
+				var h_list = hit_anim_player.get_animation_list()
+				print("🎭 AnimationPlayer (Hit Drakunyel) encontrado! Animações: ", h_list)
+				if h_list.size() > 0:
+					hit_anim_name = h_list[0]
+					for h in h_list:
+						var lower = h.to_lower()
+						if "hit" in lower or "damage" in lower or "drakunyel" in lower or "dano" in lower:
+							hit_anim_name = h
+							break
+					var anim_res = hit_anim_player.get_animation(hit_anim_name)
+					if anim_res:
+						anim_res.loop_mode = Animation.LOOP_NONE
+
+		# Configurar Nó de Ancoragem das Costas para Armas (BackWeaponAnchor)
+		if not back_weapon_anchor:
+			back_weapon_anchor = visual_mesh.get_node_or_null("BackWeaponAnchor") as Node3D
+			if not back_weapon_anchor:
+				back_weapon_anchor = Node3D.new()
+				back_weapon_anchor.name = "BackWeaponAnchor"
+				visual_mesh.add_child(back_weapon_anchor)
+				
+		if back_weapon_anchor:
+			# Posicionado exatamente idêntico ao modelo 3D do Blender (Imagem 2): guarda no centro das costas, cabo para cima/direita, lâmina plana colada nas costas descendo para baixo/esquerda
+			back_weapon_anchor.position = Vector3(-0.02, 0.65, -0.22)
+			back_weapon_anchor.rotation_degrees = Vector3(10.0, 0.0, 135.0)
+
+		# Instanciar Modelo 3D da Espada Fantasy Sword Emerald Pursuit (fantasy+sword+3d+model.glb)
+		if not fantasy_sword_node and visual_mesh:
+			var sword_scene = load("res://assets/fantasy+sword+3d+model.glb") as PackedScene
+			if sword_scene:
+				fantasy_sword_node = sword_scene.instantiate()
+				fantasy_sword_node.name = "FantasySwordEmerald3D"
+				fantasy_sword_node.scale = Vector3(2.4, 2.4, 2.4)
+				fantasy_sword_node.visible = false
+				back_weapon_anchor.add_child(fantasy_sword_node)
+
+func _update_weapon_nodes() -> void:
+	if not visual_mesh:
+		return
+	if not back_weapon_anchor:
+		back_weapon_anchor = visual_mesh.get_node_or_null("BackWeaponAnchor") as Node3D
+	if not hand_right:
+		hand_right = visual_mesh.get_node_or_null("HandRight") as Node3D
+		
+	if back_weapon_anchor and not espada_costas:
+		espada_costas = back_weapon_anchor.get_node_or_null("Espada_Costas") as Node3D
+		if not espada_costas:
+			espada_costas = back_weapon_anchor.find_child("Espada_Costas", true, false) as Node3D
+			
+	if hand_right and not espada_mao:
+		espada_mao = hand_right.get_node_or_null("Espada_Mao") as Node3D
+		if not espada_mao:
+			espada_mao = hand_right.find_child("Espada_Mao", true, false) as Node3D
+
+func _find_bone_in_skeleton(skel: Skeleton3D, keywords: Array) -> int:
+	if not skel:
+		return -1
+	var count: int = skel.get_bone_count()
+	for kw in keywords:
+		for i in range(count):
+			var b_name := skel.get_bone_name(i).to_lower()
+			if kw in b_name:
+				return i
+	return -1
+
 func update_weapon_visuals() -> void:
-	var weapon_node = get_node_or_null("VisualMesh/HandRight/WeaponSword")
-	if not weapon_node:
+	_update_weapon_position()
+
+func _update_weapon_position() -> void:
+	_update_weapon_nodes()
+	
+	var has_weapon_equipped: bool = (inventory != null and inventory.equipped_items.has("weapon") and inventory.equipped_items["weapon"] != null)
+	
+	if not has_weapon_equipped:
+		if espada_costas: espada_costas.visible = false
+		if espada_mao: espada_mao.visible = false
+		if fantasy_sword_node: fantasy_sword_node.visible = false
+		if weapon_sword: weapon_sword.visible = false
 		return
 		
-	if not inventory or not inventory.equipped_items.has("weapon") or inventory.equipped_items["weapon"] == null:
-		weapon_node.visible = false
-		return
-		
-	var w_item: ItemData = inventory.equipped_items["weapon"]
-	if w_item and w_item.item_type == ItemData.ItemType.EQUIPMENT:
-		weapon_node.visible = true
+	var is_attacking_action: bool = (active_action_model == model_attack)
+	
+	if is_attacking_action:
+		if espada_costas: espada_costas.visible = false
+		if espada_mao: espada_mao.visible = true
 	else:
-		weapon_node.visible = false
+		if espada_costas: espada_costas.visible = true
+		if espada_mao: espada_mao.visible = false
 
 func _add_starter_items() -> void:
 	if inventory:
+		var emerald_sword := ItemData.create_item("fantasy_sword_emerald_pursuit", ItemData.Rarity.GALACTIC)
+		inventory.add_item(emerald_sword, 1)
 		inventory.add_item(ItemData.create_item("apple", ItemData.Rarity.COMMON), 10)
 		inventory.add_item(ItemData.create_item("sp_potion", ItemData.Rarity.COMMON), 5)
 		inventory.add_item(ItemData.create_item("sword", ItemData.Rarity.EXCELLENT), 1)
@@ -182,6 +312,9 @@ func _add_starter_items() -> void:
 		inventory.add_item(ItemData.create_item("necklace", ItemData.Rarity.ANCIENT), 1)
 		inventory.add_item(ItemData.create_item("wings", ItemData.Rarity.GALACTIC), 1)
 		inventory.add_item(ItemData.create_item("pet", ItemData.Rarity.GALACTIC), 1)
+
+		# Equipar diretamente a Fantasy Sword Emerald Pursuit no início do jogo
+		inventory.equip_item_directly(emerald_sword)
 
 func _on_attributes_changed() -> void:
 	if attributes:
@@ -221,6 +354,9 @@ func lock_target(mob: Mob, start_attacking: bool = true) -> void:
 		target_mob.set_selected(true)
 		if not target_mob.died.is_connected(_on_target_mob_died):
 			target_mob.died.connect(_on_target_mob_died)
+		if is_new_mob:
+			var delay: float = attributes.get_attack_delay() if attributes else 0.8
+			attack_timer = delay * 0.5
 		set_move_target(target_mob.global_position)
 
 func lock_item_target(item: DroppedItem) -> void:
@@ -403,26 +539,45 @@ func _physics_process(delta: float) -> void:
 					rotation.y = lerp_angle(rotation.y, target_angle, delta * rotation_speed)
 	move_and_slide()
 
-	# Animação de Caminhada: Alternância Dinâmica entre Modelo Idle (Original) e Modelo Walk (catwalk.glb em Loop)
+	# Gerenciamento do temporizador da animação de ação (Attack / Hit)
+	if action_anim_timer > 0.0:
+		action_anim_timer -= delta
+		if action_anim_timer <= 0.0:
+			action_anim_timer = 0.0
+			active_action_model = null
+
+	# Animação de Caminhada / Idle / Ação
 	var actual_speed_2d := Vector2(velocity.x, velocity.z).length()
 	var is_stuck_on_wall: bool = is_on_wall() and actual_speed_2d < 0.2
 	var is_actually_walking: bool = is_moving and not is_stuck_on_wall and actual_speed_2d > 0.05
 
-	if is_actually_walking:
-		if model_idle: model_idle.visible = false
-		if model_walk: model_walk.visible = true
-		if anim_player and not walk_anim_name.is_empty():
-			if anim_player.current_animation != walk_anim_name or not anim_player.is_playing():
-				anim_player.play(walk_anim_name)
+	if active_action_model != null:
+		if model_idle: model_idle.visible = (active_action_model == model_idle)
+		if model_walk: model_walk.visible = (active_action_model == model_walk)
+		if model_die: model_die.visible = (active_action_model == model_die)
+		if model_attack: model_attack.visible = (active_action_model == model_attack)
+		if model_hit: model_hit.visible = (active_action_model == model_hit)
 	else:
-		if model_idle: model_idle.visible = true
-		if model_walk: model_walk.visible = false
-		if anim_player and anim_player.is_playing():
-			anim_player.stop()
-		if idle_anim_player and not idle_anim_player.is_playing():
-			var i_list = idle_anim_player.get_animation_list()
-			if i_list.size() > 0:
-				idle_anim_player.play(i_list[0])
+		if model_attack: model_attack.visible = false
+		if model_hit: model_hit.visible = false
+		if model_die: model_die.visible = is_dead
+		
+		if not is_dead:
+			if is_actually_walking:
+				if model_idle: model_idle.visible = false
+				if model_walk: model_walk.visible = true
+				if anim_player and not walk_anim_name.is_empty():
+					if anim_player.current_animation != walk_anim_name or not anim_player.is_playing():
+						anim_player.play(walk_anim_name)
+			else:
+				if model_idle: model_idle.visible = true
+				if model_walk: model_walk.visible = false
+				if anim_player and anim_player.is_playing():
+					anim_player.stop()
+				if idle_anim_player and not idle_anim_player.is_playing():
+					var i_list = idle_anim_player.get_animation_list()
+					if i_list.size() > 0:
+						idle_anim_player.play(i_list[0])
 
 	if is_actually_walking:
 		walk_anim_time += delta * 12.0
@@ -443,6 +598,8 @@ func _physics_process(delta: float) -> void:
 		if hand_right: hand_right.position.z = lerp(hand_right.position.z, 0.15, delta * 14.0)
 		if visual_mesh and not anim_player: visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, delta * 14.0)
 
+	_update_weapon_position()
+
 func _perform_attack(mob: Mob) -> void:
 	if not mob or not is_instance_valid(mob) or mob.is_dead:
 		return
@@ -458,6 +615,9 @@ func _perform_attack(mob: Mob) -> void:
 	if inventory:
 		inventory.degrade_equipped_durability("weapon", 1)
 	
+	# Disparar a animação de ataque 3D GLB attackdrakunyel
+	play_attack_animation()
+
 	# Animação de Golpe de Espada Procedural (Corte em Arco + Fagulhas de Impacto)
 	var delay: float = attributes.get_attack_delay() if attributes else 0.5
 	var windup_time: float = min(0.06, delay * 0.20)
@@ -474,13 +634,88 @@ func _perform_attack(mob: Mob) -> void:
 			var tween_hand = create_tween()
 			tween_hand.tween_property(hand_right, "position:z", 0.45, slash_time)
 			tween_hand.tween_property(hand_right, "position:z", 0.15, recovery_time)
-	elif visual_mesh:
+	elif visual_mesh and not model_attack:
 		var tween = create_tween()
 		tween.tween_property(visual_mesh, "position:z", 0.3, windup_time + slash_time)
 		tween.tween_property(visual_mesh, "position:z", 0.0, recovery_time)
 		
 	if mob and is_instance_valid(mob):
 		_spawn_hit_sparks_effect(mob.global_position + Vector3(0, 0.8, 0))
+
+func play_attack_animation() -> void:
+	if is_dead:
+		return
+		
+	_update_weapon_nodes()
+	
+	# 1. Quando o ataque for disparado: Espada_Costas = false, Espada_Mao = true
+	if espada_costas:
+		espada_costas.visible = false
+	if espada_mao:
+		espada_mao.visible = true
+		
+	# Ativar o modelo ModelAttackDrakunyel e tocar a animação de ataque correspondente
+	if model_attack and attack_anim_player and not attack_anim_name.is_empty():
+		_set_active_action_model(model_attack)
+		attack_anim_player.stop()
+		attack_anim_player.play(attack_anim_name)
+		
+		# Conectar sinal 'animation_finished' do AnimationPlayer do ataque
+		if not attack_anim_player.animation_finished.is_connected(_on_attack_animation_finished):
+			attack_anim_player.animation_finished.connect(_on_attack_animation_finished)
+			
+		var atk_delay: float = attributes.get_attack_delay() if attributes else 0.8
+		var anim_len: float = 0.5
+		var anim_res = attack_anim_player.get_animation(attack_anim_name)
+		if anim_res:
+			anim_len = anim_res.length
+		
+		var speed_scale: float = clamp(anim_len / min(0.6, atk_delay * 0.8), 0.8, 3.0)
+		attack_anim_player.speed_scale = speed_scale
+		action_anim_timer = min(0.5, atk_delay * 0.85)
+
+func _on_attack_animation_finished(_anim_name: StringName = "") -> void:
+	_finish_attack_and_sheath_weapon()
+
+func _finish_attack_and_sheath_weapon() -> void:
+	_update_weapon_nodes()
+	
+	# 2. Ao término da animação: Espada_Mao = false, Espada_Costas = true
+	if espada_mao:
+		espada_mao.visible = false
+	if espada_costas:
+		espada_costas.visible = true
+		
+	# Ocultar o modelo de ataque e reativar o modelo correspondente (ModelIdle ou ModelWalk)
+	active_action_model = null
+	if model_attack:
+		model_attack.visible = false
+		
+	if is_moving and model_walk:
+		if model_idle: model_idle.visible = false
+		model_walk.visible = true
+	elif model_idle:
+		model_idle.visible = true
+		if model_walk: model_walk.visible = false
+
+func play_hit_animation() -> void:
+	if is_dead:
+		return
+	if model_hit and hit_anim_player and not hit_anim_name.is_empty():
+		_set_active_action_model(model_hit)
+		hit_anim_player.stop()
+		hit_anim_player.play(hit_anim_name)
+		
+		hit_anim_player.speed_scale = 1.3
+		action_anim_timer = 0.35
+
+func _set_active_action_model(target_model: Node3D) -> void:
+	active_action_model = target_model
+	if model_idle: model_idle.visible = (target_model == model_idle)
+	if model_walk: model_walk.visible = (target_model == model_walk)
+	if model_die: model_die.visible = (target_model == model_die)
+	if model_attack: model_attack.visible = (target_model == model_attack)
+	if model_hit: model_hit.visible = (target_model == model_hit)
 
 func _spawn_hit_sparks_effect(pos: Vector3) -> void:
 	var parent_node = get_parent()
@@ -554,6 +789,8 @@ func take_damage_from(attacker_hit: int, attacker_atk: int, attacker_crit: float
 			
 		if current_hp <= 0:
 			_die()
+		else:
+			play_hit_animation()
 	else:
 		_flash_miss()
 		# Popup de esquiva do jogador
@@ -567,11 +804,15 @@ func _die() -> void:
 	is_dead = true
 	is_moving = false
 	velocity = Vector3.ZERO
+	action_anim_timer = 0.0
+	active_action_model = model_die
 	clear_target()
 	emit_signal("player_died")
 
 	if model_idle: model_idle.visible = false
 	if model_walk: model_walk.visible = false
+	if model_attack: model_attack.visible = false
+	if model_hit: model_hit.visible = false
 	if model_die: model_die.visible = true
 
 	if anim_player and anim_player.is_playing():
@@ -592,10 +833,14 @@ func respawn() -> void:
 	is_dead = false
 	is_moving = false
 	velocity = Vector3.ZERO
+	action_anim_timer = 0.0
+	active_action_model = null
 	clear_target()
 
 	if model_die: model_die.visible = false
 	if model_walk: model_walk.visible = false
+	if model_attack: model_attack.visible = false
+	if model_hit: model_hit.visible = false
 	if model_idle: model_idle.visible = true
 
 	if die_anim_player and die_anim_player.is_playing():

@@ -98,7 +98,8 @@ func change_state(new_state: State) -> void:
 	emit_signal("state_changed", old_state, new_state)
 	
 	if current_state == State.ATTACK:
-		mob_attack_timer = attack_cooldown
+		# Iniciar o timer de ataque com vento-up (25% do cooldown) para golpes assíncronos e individuais
+		mob_attack_timer = attack_cooldown * 0.25
 	elif current_state == State.PATROL:
 		is_wandering = false
 		wander_timer = 0.0
