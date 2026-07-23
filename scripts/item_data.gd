@@ -30,6 +30,34 @@ func get_display_name() -> String:
 		return "+%d %s" % [upgrade_level, name]
 	return name
 
+## Retorna se o item é de raridade Excelente ou superior (ou de alto refinamento) para confirmação de venda
+func is_high_rarity_or_valuable() -> bool:
+	if rarity in [Rarity.EXCELLENT, Rarity.ANCIENT, Rarity.GALACTIC]:
+		return true
+	if upgrade_level >= 6:
+		return true
+	return false
+
+## Retorna o valor de venda em Éons
+func get_sell_value_eons() -> int:
+	var base_val: int = 40
+	if item_type == ItemType.EQUIPMENT:
+		match rarity:
+			Rarity.COMMON: base_val = 80
+			Rarity.EXCELLENT: base_val = 350
+			Rarity.ANCIENT: base_val = 1200
+			Rarity.GALACTIC: base_val = 3500
+		if upgrade_level > 0:
+			base_val = int(base_val * (1.0 + upgrade_level * 0.25))
+	elif item_type == ItemType.CONSUMABLE:
+		base_val = 15
+		if id == "jewel_simplicity": base_val = 150
+		elif id == "jewel_ethrel": base_val = 420
+	elif item_type == ItemType.MISC:
+		if id == "eons_pouch": base_val = 100
+		elif id == "card": base_val = 500
+	return max(1, base_val)
+
 ## Retorna a durabilidade máxima padrão para a raridade do equipamento
 func get_default_durability_for_rarity() -> int:
 	match rarity:

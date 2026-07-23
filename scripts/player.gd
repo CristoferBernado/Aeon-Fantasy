@@ -24,6 +24,14 @@ var current_sp: int = 50
 var is_dead: bool = false
 var spawn_origin: Vector3 = Vector3.ZERO
 
+@onready var feet_left: Node3D = get_node_or_null("VisualMesh/FeetLeft") as Node3D
+@onready var feet_right: Node3D = get_node_or_null("VisualMesh/FeetRight") as Node3D
+@onready var hand_left: Node3D = get_node_or_null("VisualMesh/HandLeft") as Node3D
+@onready var hand_right: Node3D = get_node_or_null("VisualMesh/HandRight") as Node3D
+@onready var weapon_sword: Node3D = get_node_or_null("VisualMesh/HandRight/WeaponSword") as Node3D
+
+var walk_anim_time: float = 0.0
+
 # Sistema de Inventário
 var inventory: InventoryManager = null
 
@@ -44,10 +52,30 @@ func _ready() -> void:
 	attack_timer = attributes.get_attack_delay()
 	attributes.attributes_changed.connect(_on_attributes_changed)
 	
+	collision_mask = 1 | 4
+	floor_snap_length = 0.5
+	floor_max_angle = deg_to_rad(55.0)
+	
 	# Inicializar Inventário com itens de teste cobrindo todas as raridades
 	inventory = InventoryManager.new()
 	inventory.player_ref = self
 	_add_starter_items()
+	update_weapon_visuals()
+
+func update_weapon_visuals() -> void:
+	var weapon_node = get_node_or_null("VisualMesh/HandRight/WeaponSword")
+	if not weapon_node:
+		return
+		
+	if not inventory or not inventory.equipped_items.has("weapon") or inventory.equipped_items["weapon"] == null:
+		weapon_node.visible = false
+		return
+		
+	var w_item: ItemData = inventory.equipped_items["weapon"]
+	if w_item and w_item.item_type == ItemData.ItemType.EQUIPMENT:
+		weapon_node.visible = true
+	else:
+		weapon_node.visible = false
 
 func _add_starter_items() -> void:
 	if inventory:
@@ -148,6 +176,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			pickup_nearest_item()
 			get_viewport().set_input_as_handled()
 
+const STAIR_TOP_WAYPOINT := Vector3(35.0, 3.0, -26.5)
+const STAIR_BOTTOM_WAYPOINT := Vector3(35.0, 0.0, -18.5)
+
+var waypoint_queue: Array[Vector3] = []
+
 func clear_target() -> void:
 	if target_mob and is_instance_valid(target_mob):
 		target_mob.set_selected(false)
@@ -155,46 +188,84 @@ func clear_target() -> void:
 	target_item = null
 	is_attacking = false
 	attack_timer = 0.0
+	waypoint_queue.clear()
 
 func set_move_target(target_pos: Vector3) -> void:
 	if is_dead:
 		return
-	target_destination = Vector3(target_pos.x, global_position.y, target_pos.z)
+		
+	waypoint_queue.clear()
+	var cur_y: float = global_position.y
+	var dest_y: float = target_pos.y
+	
+	if cur_y >= 1.5 and dest_y < 1.5:
+		if global_position.distance_to(STAIR_TOP_WAYPOINT) > 1.2:
+			waypoint_queue.append(STAIR_TOP_WAYPOINT)
+		waypoint_queue.append(STAIR_BOTTOM_WAYPOINT)
+		waypoint_queue.append(target_pos)
+	elif cur_y < 1.5 and dest_y >= 1.5:
+		if global_position.distance_to(STAIR_BOTTOM_WAYPOINT) > 1.2:
+			waypoint_queue.append(STAIR_BOTTOM_WAYPOINT)
+		waypoint_queue.append(STAIR_TOP_WAYPOINT)
+		waypoint_queue.append(target_pos)
+	else:
+		waypoint_queue.append(target_pos)
+		
+	_advance_waypoint()
 	is_moving = true
+
+func _advance_waypoint() -> void:
+	if waypoint_queue.size() > 0:
+		target_destination = waypoint_queue.pop_front()
+	else:
+		is_moving = false
+		velocity.x = 0.0
+		velocity.z = 0.0
+		emit_signal("target_reached")
 
 func _physics_process(delta: float) -> void:
 	if is_dead:
 		velocity = Vector3.ZERO
 		return
 		
+	# Aplicar gravidade para manter o personagem colado ao chão e rampas
+	if not is_on_floor():
+		velocity.y -= 19.6 * delta
+	else:
+		velocity.y = -0.1
+		
 	# Processamento de Coleta de Item Focado
 	if target_item and is_instance_valid(target_item) and not target_item.is_picked_up:
-		target_destination = Vector3(target_item.global_position.x, global_position.y, target_item.global_position.z)
-		var dist_to_item: float = Vector2(global_position.x, global_position.z).distance_to(Vector2(target_destination.x, target_destination.z))
+		if not is_moving and waypoint_queue.is_empty():
+			set_move_target(target_item.global_position)
+		var dist_to_item: float = Vector2(global_position.x, global_position.z).distance_to(Vector2(target_item.global_position.x, target_item.global_position.z))
 		
 		if dist_to_item <= 1.5:
 			is_moving = false
-			velocity = Vector3.ZERO
+			waypoint_queue.clear()
+			velocity.x = 0.0
+			velocity.z = 0.0
 			target_item.attempt_pickup(self)
 			target_item = null
-		else:
-			is_moving = true
 
 	# Processamento de Combate / Perseguição ao Alvo
 	if target_mob and is_instance_valid(target_mob) and not target_mob.is_dead:
-		target_destination = Vector3(target_mob.global_position.x, global_position.y, target_mob.global_position.z)
-		var dist_to_mob: float = Vector2(global_position.x, global_position.z).distance_to(Vector2(target_destination.x, target_destination.z))
+		var dist_to_mob: float = Vector2(global_position.x, global_position.z).distance_to(Vector2(target_mob.global_position.x, target_mob.global_position.z))
 		
 		# Se estiver fora do alcance de ataque, aproxima-se do mob
 		if dist_to_mob > attack_range:
-			is_moving = true
+			if not is_moving or waypoint_queue.is_empty():
+				set_move_target(target_mob.global_position)
 		else:
 			# Chegou ao alcance de ataque
 			is_moving = false
-			velocity = Vector3.ZERO
+			waypoint_queue.clear()
+			velocity.x = 0.0
+			velocity.z = 0.0
 			
 			# Rotacionar o personagem na direção do mob
-			var dir_to_mob: Vector3 = (target_destination - global_position).normalized()
+			var dir_to_mob: Vector3 = (target_mob.global_position - global_position)
+			dir_to_mob.y = 0.0
 			if dir_to_mob.length_squared() > 0.001:
 				var target_angle: float = atan2(dir_to_mob.x, dir_to_mob.z)
 				if visual_mesh:
@@ -209,39 +280,61 @@ func _physics_process(delta: float) -> void:
 				if attack_timer >= attack_delay:
 					attack_timer = 0.0
 					_perform_attack(target_mob)
-	
-	# Processamento do Movimento
-	if not is_moving:
-		return
+			return
+
+	if is_moving:
+		var current_pos_2d := Vector2(global_position.x, global_position.z)
+		var target_pos_2d := Vector2(target_destination.x, target_destination.z)
+		var dist: float = current_pos_2d.distance_to(target_pos_2d)
 		
-	var current_pos_2d := Vector2(global_position.x, global_position.z)
-	var target_pos_2d := Vector2(target_destination.x, target_destination.z)
-	
-	var dist: float = current_pos_2d.distance_to(target_pos_2d)
-	
-	if dist <= 0.3:
-		is_moving = false
-		velocity = Vector3.ZERO
-		emit_signal("target_reached")
-		return
-		
-	var direction: Vector3 = (target_destination - global_position)
-	direction.y = 0.0
-	
-	if direction.length_squared() > 0.001:
-		direction = direction.normalized()
-		current_move_dir = direction
-		velocity = direction * move_speed
-		
-		var target_angle: float = atan2(direction.x, direction.z)
-		if visual_mesh:
-			visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, target_angle, delta * rotation_speed)
+		if dist <= 0.6:
+			if waypoint_queue.size() > 0:
+				_advance_waypoint()
+			else:
+				is_moving = false
+				velocity.x = 0.0
+				velocity.z = 0.0
+				emit_signal("target_reached")
 		else:
-			rotation.y = lerp_angle(rotation.y, target_angle, delta * rotation_speed)
+			var direction: Vector3 = (target_destination - global_position)
+			direction.y = 0.0
 			
-		move_and_slide()
+			if direction.length_squared() > 0.001:
+				var move_dir := direction.normalized()
+				current_move_dir = move_dir
+				velocity.x = move_dir.x * move_speed
+				velocity.z = move_dir.z * move_speed
+				
+				var target_angle: float = atan2(move_dir.x, move_dir.z)
+				if visual_mesh:
+					visual_mesh.rotation.y = lerp_angle(visual_mesh.rotation.y, target_angle, delta * rotation_speed)
+				else:
+					rotation.y = lerp_angle(rotation.y, target_angle, delta * rotation_speed)
+	move_and_slide()
+
+	# Animação Procedural de Caminhada (Balanço de Pés, Mãos e Bobbing Vertical)
+	# Se o personagem estiver travado contra uma parede (velocidade real 2D muito baixa), pausa a animação sem cancelar os waypoints
+	var actual_speed_2d := Vector2(velocity.x, velocity.z).length()
+	var is_stuck_on_wall: bool = is_on_wall() and actual_speed_2d < 0.2
+
+	if is_moving and not is_stuck_on_wall and actual_speed_2d > 0.05:
+		walk_anim_time += delta * 12.0
+		var leg_swing: float = sin(walk_anim_time) * 0.18
+		var arm_swing: float = sin(walk_anim_time) * 0.14
+		var bob_y: float = abs(sin(walk_anim_time)) * 0.06
+		
+		if feet_left: feet_left.position.z = 0.08 + leg_swing
+		if feet_right: feet_right.position.z = 0.08 - leg_swing
+		if hand_left: hand_left.position.z = 0.15 - arm_swing
+		if hand_right: hand_right.position.z = 0.15 + arm_swing
+		if visual_mesh: visual_mesh.position.y = bob_y
 	else:
-		velocity = Vector3.ZERO
+		walk_anim_time = 0.0
+		if feet_left: feet_left.position.z = lerp(feet_left.position.z, 0.08, delta * 14.0)
+		if feet_right: feet_right.position.z = lerp(feet_right.position.z, 0.08, delta * 14.0)
+		if hand_left: hand_left.position.z = lerp(hand_left.position.z, 0.15, delta * 14.0)
+		if hand_right: hand_right.position.z = lerp(hand_right.position.z, 0.15, delta * 14.0)
+		if visual_mesh: visual_mesh.position.y = lerp(visual_mesh.position.y, 0.0, delta * 14.0)
 
 func _perform_attack(mob: Mob) -> void:
 	if not mob or not is_instance_valid(mob) or mob.is_dead:
@@ -258,14 +351,62 @@ func _perform_attack(mob: Mob) -> void:
 	if inventory:
 		inventory.degrade_equipped_durability("weapon", 1)
 	
-	# Animação de ataque do jogador proporcional à ASPD
-	if visual_mesh:
-		var delay: float = attributes.get_attack_delay() if attributes else 0.5
-		var forward_time: float = min(0.06, delay * 0.25)
-		var return_time: float = min(0.08, delay * 0.35)
+	# Animação de Golpe de Espada Procedural (Corte em Arco + Fagulhas de Impacto)
+	var delay: float = attributes.get_attack_delay() if attributes else 0.5
+	var windup_time: float = min(0.06, delay * 0.20)
+	var slash_time: float = min(0.10, delay * 0.30)
+	var recovery_time: float = min(0.12, delay * 0.40)
+	
+	if weapon_sword and weapon_sword.visible:
 		var tween = create_tween()
-		tween.tween_property(visual_mesh, "position:z", 0.3, forward_time)
-		tween.tween_property(visual_mesh, "position:z", 0.0, return_time)
+		tween.tween_property(weapon_sword, "rotation_degrees:y", -45.0, windup_time)
+		tween.tween_property(weapon_sword, "rotation_degrees:y", 65.0, slash_time)
+		tween.tween_property(weapon_sword, "rotation_degrees:y", 0.0, recovery_time)
+		
+		if hand_right:
+			var tween_hand = create_tween()
+			tween_hand.tween_property(hand_right, "position:z", 0.45, slash_time)
+			tween_hand.tween_property(hand_right, "position:z", 0.15, recovery_time)
+	elif visual_mesh:
+		var tween = create_tween()
+		tween.tween_property(visual_mesh, "position:z", 0.3, windup_time + slash_time)
+		tween.tween_property(visual_mesh, "position:z", 0.0, recovery_time)
+		
+	if mob and is_instance_valid(mob):
+		_spawn_hit_sparks_effect(mob.global_position + Vector3(0, 0.8, 0))
+
+func _spawn_hit_sparks_effect(pos: Vector3) -> void:
+	var parent_node = get_parent()
+	if not parent_node: parent_node = get_tree().current_scene
+	
+	var particles := CPUParticles3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.06
+	mesh.height = 0.12
+	
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.9, 0.4, 0.9)
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.85, 0.2)
+	mat.emission_energy_multiplier = 3.0
+	mesh.material = mat
+	
+	particles.mesh = mesh
+	particles.amount = 14
+	particles.lifetime = 0.25
+	particles.one_shot = true
+	particles.explosiveness = 0.95
+	particles.direction = Vector3(0, 1, 0)
+	particles.spread = 180.0
+	particles.initial_velocity_min = 2.0
+	particles.initial_velocity_max = 5.0
+	
+	parent_node.add_child(particles)
+	particles.global_position = pos
+	particles.emitting = true
+	
+	var timer = get_tree().create_timer(0.35)
+	timer.timeout.connect(particles.queue_free)
 
 func _on_target_mob_died() -> void:
 	clear_target()

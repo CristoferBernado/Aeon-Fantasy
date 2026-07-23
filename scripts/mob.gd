@@ -31,6 +31,8 @@ enum State { PATROL, CHASE, ATTACK }
 @export var wander_radius: float = 8.0
 @export var respawn_time: float = 10.0
 
+@export var is_boss: bool = false
+
 var current_hp: int = 150
 var is_selected: bool = false
 var is_dead: bool = false
@@ -52,6 +54,7 @@ signal died(spawn_pos: Vector3, mob_info: Dictionary)
 signal state_changed(old_state: State, new_state: State)
 
 func _ready() -> void:
+	collision_mask = 1 | 4
 	is_dead = false
 	current_hp = max_hp
 	if spawn_origin == Vector3.ZERO:
@@ -62,18 +65,29 @@ func _ready() -> void:
 	add_to_group("mobs")
 	
 	if mesh_instance:
-		mesh_instance.scale = Vector3.ONE
-		mesh_instance.position = Vector3(0, 0.5, 0)
+		mesh_instance.scale = Vector3(2.5, 2.5, 2.5) if is_boss else Vector3.ONE
+		mesh_instance.position = Vector3(0, 1.25 if is_boss else 0.5, 0)
 		mesh_instance.visible = true
+		
+	if selection_ring and is_boss:
+		selection_ring.scale = Vector3(2.2, 2.2, 2.2)
 		
 	var col_shape = get_node_or_null("CollisionShape3D") as CollisionShape3D
 	if col_shape:
 		col_shape.disabled = false
-		col_shape.position = Vector3(0, 0.5, 0)
+		col_shape.position = Vector3(0, 1.25 if is_boss else 0.5, 0)
+		if is_boss:
+			col_shape.scale = Vector3(2.2, 2.2, 2.2)
 		
+	if hp_label:
+		hp_label.position = Vector3(0, 2.85 if is_boss else 1.25, 0)
+		hp_label.no_depth_test = true
+		hp_label.billboard = BaseMaterial3D.BILLBOARD_ENABLED
+
 	_update_ui()
 	set_selected(false)
 	_pick_new_wander_target()
+	_spawn_yellow_aura_effect()
 
 func change_state(new_state: State) -> void:
 	if current_state == new_state:
@@ -176,14 +190,49 @@ func _process_chase_state(delta: float, player_node: Player) -> void:
 		change_state(State.ATTACK)
 		return
 		
-	# Perseguição ao jogador
-	var dir := (player_pos - global_position)
+	# Se mob e jogador estiverem em andares diferentes, o mob NÃO pode subir nem descer as escadas
+	var mob_high: bool = spawn_origin.y >= 1.5
+	var p_high: bool = player_pos.y >= 1.5
+	var target_pos := player_pos
+
+	if mob_high != p_high:
+		if mob_high:
+			# Mob do andar superior: persegue até o limite do platô (Z = -26.5) sem descer a escada
+			target_pos.z = min(player_pos.z, -26.5)
+			target_pos.x = clamp(player_pos.x, 26.5, 43.5)
+		else:
+			# Mob do andar inferior: persegue até a base da escada (Z = -18.0) sem subir
+			target_pos.z = max(player_pos.z, -18.0)
+			
+		var dist_to_edge := Vector2(global_position.x, global_position.z).distance_to(Vector2(target_pos.x, target_pos.z))
+		if dist_to_edge <= 0.6:
+			velocity = Vector3.ZERO
+			var look_dir := (player_pos - global_position)
+			look_dir.y = 0.0
+			if look_dir.length_squared() > 0.001:
+				_rotate_visual(look_dir.normalized(), delta, 12.0)
+			return
+
+	var dir := (target_pos - global_position)
 	dir.y = 0.0
 	if dir.length_squared() > 0.001:
 		dir = dir.normalized()
-		velocity = dir * chase_speed
+		velocity.x = dir.x * chase_speed
+		velocity.z = dir.z * chase_speed
+		if not is_on_floor():
+			velocity.y -= 19.6 * delta
+		else:
+			velocity.y = -0.1
 		_rotate_visual(dir, delta, 12.0)
 		move_and_slide()
+		
+		# Trava física de posição para que mobs nunca cruzem a escada
+		if mob_high:
+			if global_position.z > -26.0 and global_position.x >= 32.0 and global_position.x <= 38.0:
+				global_position.z = -26.0
+		else:
+			if global_position.z < -18.2 and global_position.x >= 32.0 and global_position.x <= 38.0:
+				global_position.z = -18.2
 	else:
 		velocity = Vector3.ZERO
 
@@ -246,6 +295,9 @@ func _pick_new_wander_target() -> void:
 		)
 		target_wander_pos = spawn_origin + random_offset
 		target_wander_pos.y = spawn_origin.y
+		if spawn_origin.y >= 2.0:
+			target_wander_pos.x = clamp(target_wander_pos.x, 28.0, 42.0)
+			target_wander_pos.z = clamp(target_wander_pos.z, -42.0, -28.0)
 		is_wandering = true
 	else:
 		is_wandering = false
@@ -331,11 +383,20 @@ func _update_ui() -> void:
 			State.ATTACK:
 				state_str = "Ataque"
 				
-		hp_label.text = "%s (Lv %d)\n[%s] HP: %d/%d" % [mob_name, level, state_str, current_hp, max_hp]
+		if is_boss:
+			hp_label.text = "👑 %s (BOSS Lv %d)\n[%s] HP: %d/%d" % [mob_name, level, state_str, current_hp, max_hp]
+			hp_label.modulate = Color(1.0, 0.35, 0.1)
+			hp_label.font_size = 28
+			hp_label.outline_size = 6
+		else:
+			hp_label.text = "%s (Lv %d)\n[%s] HP: %d/%d" % [mob_name, level, state_str, current_hp, max_hp]
+			hp_label.font_size = 22
+			hp_label.outline_size = 4
 
 func _die() -> void:
 	is_dead = true
 	set_selected(false)
+	_spawn_death_smoke_effect()
 	
 	# Conceder experiência e espólios ao jogador
 	var p := _get_target_player()
@@ -354,7 +415,8 @@ func _die() -> void:
 		"is_aggressive": is_aggressive,
 		"chase_speed": chase_speed,
 		"attack_damage": attack_damage,
-		"attack_cooldown": attack_cooldown
+		"attack_cooldown": attack_cooldown,
+		"is_boss": is_boss
 	}
 	
 	emit_signal("died", spawn_origin, mob_info)
@@ -376,43 +438,118 @@ func _drop_loot(player_ref: Player) -> void:
 		parent_node = get_tree().current_scene
 
 	# 1. DROP GARANTIDO DE ÉONS (Ouro in-game proporcional ao nível do mob)
-	var eons_chance: float = clamp(70.0 + level * 3.0, 70.0, 95.0)
+	var eons_chance: float = 100.0 if is_boss else clamp(70.0 + level * 3.0, 70.0, 95.0)
 	if randf() * 100.0 <= eons_chance:
-		var eons_amount: int = randi_range(level * 12, level * 28)
+		var eons_amount: int = randi_range(level * 80, level * 150) if is_boss else randi_range(level * 12, level * 28)
 		var eons_item_data := ItemData.create_item("eons_pouch", ItemData.Rarity.COMMON)
 		var dropped_eons = DroppedItemScene.instantiate() as DroppedItem
 		parent_node.add_child(dropped_eons)
-		var scatter_eons := Vector3(randf_range(-0.5, 0.5), 0.0, randf_range(-0.5, 0.5))
+		var scatter_eons := Vector3(randf_range(-0.8, 0.8), 0.0, randf_range(-0.8, 0.8))
 		dropped_eons.global_position = global_position + scatter_eons
 		dropped_eons.setup_item(eons_item_data, eons_amount)
 
 	# 2. DROP DE EQUIPAMENTOS E CONSUMÍVEIS (Taxa de drop de itens)
-	if randf() * 100.0 > drop_chance:
+	var num_drops: int = randi_range(2, 4) if is_boss else 1
+	if not is_boss and randf() * 100.0 > drop_chance:
 		return
 
-	# Sorteio de raridade de espólio (Comum, Excelente, Ancient, Galáctico)
-	var rng := randf() * 100.0
-	var item_rarity := ItemData.Rarity.COMMON
-	
-	if rng < 5.0:         # 5% de chance de item GALÁCTICO
-		item_rarity = ItemData.Rarity.GALACTIC
-	elif rng < 20.0:      # 15% de chance de item ANCIENT
-		item_rarity = ItemData.Rarity.ANCIENT
-	elif rng < 50.0:      # 30% de chance de item EXCELENTE
-		item_rarity = ItemData.Rarity.EXCELLENT
-
-	var possible_items = ["apple", "sp_potion", "sword", "shield", "helmet", "armor", "pants", "boots", "gloves", "ring", "card"]
-	var chosen_id: String = possible_items[randi() % possible_items.size()]
-	var loot := ItemData.create_item(chosen_id, item_rarity)
-	
-	var qty: int = 1
-	if chosen_id == "apple" or chosen_id == "sp_potion":
-		qty = randi_range(1, 3)
+	for d in range(num_drops):
+		var rng := randf() * 100.0
+		var item_rarity := ItemData.Rarity.COMMON
 		
-	# Instanciar o item no chão 3D
-	var dropped_item = DroppedItemScene.instantiate() as DroppedItem
-	parent_node.add_child(dropped_item)
+		if is_boss:
+			if rng < 40.0:
+				item_rarity = ItemData.Rarity.GALACTIC
+			else:
+				item_rarity = ItemData.Rarity.ANCIENT
+		else:
+			if rng < 5.0:         # 5% de chance de item GALÁCTICO
+				item_rarity = ItemData.Rarity.GALACTIC
+			elif rng < 20.0:      # 15% de chance de item ANCIENT
+				item_rarity = ItemData.Rarity.ANCIENT
+			elif rng < 50.0:      # 30% de chance de item EXCELENTE
+				item_rarity = ItemData.Rarity.EXCELLENT
+
+		var possible_items = ["apple", "sp_potion", "sword", "shield", "helmet", "armor", "pants", "boots", "gloves", "ring", "jewel_simplicity", "jewel_ethrel", "card"]
+		var chosen_id: String = possible_items[randi() % possible_items.size()]
+		var loot := ItemData.create_item(chosen_id, item_rarity)
+		
+		var qty: int = 1
+		if chosen_id == "apple" or chosen_id == "sp_potion":
+			qty = randi_range(3, 8) if is_boss else randi_range(1, 3)
+			
+		# Instanciar o item no chão 3D
+		var dropped_item = DroppedItemScene.instantiate() as DroppedItem
+		parent_node.add_child(dropped_item)
+		
+		var scatter := Vector3(randf_range(-1.2, 1.2), 0.0, randf_range(-1.2, 1.2))
+		dropped_item.global_position = global_position + scatter
+		dropped_item.setup_item(loot, qty)
+
+func _spawn_yellow_aura_effect() -> void:
+	var parent_node = get_parent()
+	if not parent_node: parent_node = get_tree().current_scene
 	
-	var scatter := Vector3(randf_range(-0.4, 0.4), 0.0, randf_range(-0.4, 0.4))
-	dropped_item.global_position = global_position + scatter
-	dropped_item.setup_item(loot, qty)
+	var particles := CPUParticles3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.18 if not is_boss else 0.45
+	mesh.height = 0.36 if not is_boss else 0.90
+	
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(1.0, 0.88, 0.2, 0.85)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.emission_enabled = true
+	mat.emission = Color(1.0, 0.82, 0.1)
+	mat.emission_energy_multiplier = 2.0
+	mesh.material = mat
+	
+	particles.mesh = mesh
+	particles.amount = 28 if not is_boss else 45
+	particles.lifetime = 0.95
+	particles.one_shot = true
+	particles.explosiveness = 0.35
+	particles.direction = Vector3(0, 1, 0)
+	particles.spread = 45.0
+	particles.gravity = Vector3(0, 1.8, 0)
+	particles.initial_velocity_min = 1.0
+	particles.initial_velocity_max = 2.4
+	
+	parent_node.add_child(particles)
+	particles.global_position = global_position + Vector3(0, 0.2, 0)
+	particles.emitting = true
+	
+	var timer = get_tree().create_timer(1.2)
+	timer.timeout.connect(particles.queue_free)
+
+func _spawn_death_smoke_effect() -> void:
+	var parent_node = get_parent()
+	if not parent_node: parent_node = get_tree().current_scene
+	
+	var particles := CPUParticles3D.new()
+	var mesh := SphereMesh.new()
+	mesh.radius = 0.32 if not is_boss else 0.8
+	mesh.height = 0.64 if not is_boss else 1.6
+	
+	var mat := StandardMaterial3D.new()
+	mat.albedo_color = Color(0.92, 0.92, 0.95, 0.75)
+	mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
+	mat.roughness = 0.9
+	mesh.material = mat
+	
+	particles.mesh = mesh
+	particles.amount = 24 if not is_boss else 50
+	particles.lifetime = 0.55
+	particles.one_shot = true
+	particles.explosiveness = 0.92
+	particles.direction = Vector3(0, 1, 0)
+	particles.spread = 180.0
+	particles.gravity = Vector3(0, 0.8, 0)
+	particles.initial_velocity_min = 2.2 if not is_boss else 4.5
+	particles.initial_velocity_max = 4.8 if not is_boss else 9.0
+	
+	parent_node.add_child(particles)
+	particles.global_position = global_position + Vector3(0, 0.6, 0)
+	particles.emitting = true
+	
+	var timer = get_tree().create_timer(0.7)
+	timer.timeout.connect(particles.queue_free)

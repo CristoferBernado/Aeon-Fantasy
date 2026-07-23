@@ -247,8 +247,9 @@ func equip_item_from_slot(slot_idx: int) -> bool:
 		slots[slot_idx] = null
 
 	_emit_updates()
-	_update_player_stats()
 	emit_signal("equipment_changed")
+	if player_ref and is_instance_valid(player_ref) and player_ref.has_method("update_weapon_visuals"):
+		player_ref.update_weapon_visuals()
 	return true
 
 ## Refina um equipamento usando uma joia (Jewel of Simplicity +0~+6 | Jewel of Ethrel +6~+9)
@@ -306,8 +307,9 @@ func unequip_item(equip_key: String) -> bool:
 	slots[empty_idx] = { "item": item, "quantity": 1 }
 
 	_emit_updates()
-	_update_player_stats()
 	emit_signal("equipment_changed")
+	if player_ref and is_instance_valid(player_ref) and player_ref.has_method("update_weapon_visuals"):
+		player_ref.update_weapon_visuals()
 	return true
 
 ## Calcula a soma total dos bônus de todos os equipamentos equipados

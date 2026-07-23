@@ -10,6 +10,16 @@ class_name CameraController
 ## Tamanho da projeção ortográfica (campo de visão)
 @export var orthographic_size: float = 18.0
 
+@export_group("Zoom Settings (Estilo Ragnarok Online)")
+## Tamanho mínimo da projeção (Zoom In Máximo - Próximo)
+@export var min_zoom: float = 8.0
+## Tamanho máximo da projeção (Zoom Out Máximo - Distante)
+@export var max_zoom: float = 28.0
+## Passo de variação do zoom por scroll do mouse
+@export var zoom_step: float = 1.5
+## Suavidade da transição de zoom
+@export var zoom_smoothness: float = 14.0
+
 @export_group("Rotation Settings")
 ## Duração da animação de rotação em segundos
 @export var rotation_duration: float = 0.35
@@ -28,6 +38,7 @@ class_name CameraController
 # Controle de índice para os 4 eixos (0: 45°, 1: 135°, 2: 225°, 3: 315°)
 var current_step_index: int = 0
 var target_yaw_rad: float = deg_to_rad(45.0)
+var target_ortho_size: float = 18.0
 var tween: Tween = null
 var is_animating: bool = false
 
@@ -37,6 +48,7 @@ signal rotation_changed(current_angle_degrees: float)
 func _ready() -> void:
 	# Define a orientação inicial de 45 graus
 	rotation.y = target_yaw_rad
+	target_ortho_size = orthographic_size
 	
 	if pitch_node:
 		pitch_node.rotation.x = deg_to_rad(-pitch_angle_degrees)
@@ -65,6 +77,10 @@ func _physics_process(delta: float) -> void:
 	if target_node and is_instance_valid(target_node):
 		global_position = global_position.lerp(target_node.global_position, delta * follow_speed)
 
+	# Interpolação suave do Zoom da câmera
+	if camera:
+		camera.size = lerp(camera.size, target_ortho_size, delta * zoom_smoothness)
+
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode in [KEY_Q, KEY_A, KEY_LEFT]:
@@ -73,6 +89,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			rotate_camera_step(1)  # Girar 90° no sentido horário
 		elif event.keycode == KEY_R:
 			reset_camera()         # Resetar para 45°
+	elif event is InputEventMouseButton and event.pressed:
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			zoom_in()
+		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			zoom_out()
+
+## Aproxima a câmera (Zoom In)
+func zoom_in() -> void:
+	target_ortho_size = clamp(target_ortho_size - zoom_step, min_zoom, max_zoom)
+
+## Afasta a câmera (Zoom Out)
+func zoom_out() -> void:
+	target_ortho_size = clamp(target_ortho_size + zoom_step, min_zoom, max_zoom)
 
 ## Gira a câmera em passos de 90 graus (-1 para esquerda, 1 para direita)
 func rotate_camera_step(direction: int) -> void:

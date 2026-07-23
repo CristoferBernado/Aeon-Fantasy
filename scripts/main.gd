@@ -38,7 +38,7 @@ func _spawn_npc_merchant() -> void:
 		nav_region.add_child(npc)
 	else:
 		add_child(npc)
-	npc.global_position = Vector3(3, 0, 3)
+	npc.global_position = Vector3(2.0, 0, 6.0)
 
 func _spawn_npc_blacksmith() -> void:
 	var blacksmith = NPCBlacksmithScene.instantiate() as NPCBlacksmith
@@ -47,16 +47,17 @@ func _spawn_npc_blacksmith() -> void:
 		nav_region.add_child(blacksmith)
 	else:
 		add_child(blacksmith)
-	blacksmith.global_position = Vector3(-5, 0, 5)
+	blacksmith.global_position = Vector3(-2.0, 0, 6.0)
 
 func _spawn_initial_map_mobs() -> void:
 	var extra_mobs_info = [
-		{"name": "Lunático 3D", "level": 7, "hp": 180, "pos": Vector3(25, 0, 25), "aggr": false},
-		{"name": "Fabre 3D", "level": 10, "hp": 240, "pos": Vector3(-30, 0, 20), "aggr": false},
-		{"name": "Esporito 3D", "level": 12, "hp": 300, "pos": Vector3(-25, 0, -35), "aggr": false},
-		{"name": "Esqueleto Guerreiro", "level": 18, "hp": 450, "pos": Vector3(40, 0, -25), "aggr": true},
-		{"name": "Golem de Pedra", "level": 25, "hp": 750, "pos": Vector3(-45, 0, 45), "aggr": true},
-		{"name": "Poring Rei", "level": 15, "hp": 500, "pos": Vector3(38, 0, 38), "aggr": false}
+		{"name": "Lunático 3D", "level": 7, "hp": 180, "pos": Vector3(25, 0, 25), "aggr": false, "is_boss": false},
+		{"name": "Fabre 3D", "level": 10, "hp": 240, "pos": Vector3(-30, 0, 20), "aggr": false, "is_boss": false},
+		{"name": "Esporito 3D", "level": 12, "hp": 300, "pos": Vector3(-25, 0, -35), "aggr": false, "is_boss": false},
+		{"name": "Esqueleto Guerreiro", "level": 18, "hp": 450, "pos": Vector3(40, 0, -25), "aggr": true, "is_boss": false},
+		{"name": "Golem de Pedra", "level": 25, "hp": 750, "pos": Vector3(-45, 0, 45), "aggr": true, "is_boss": false},
+		{"name": "Poring Rei", "level": 15, "hp": 500, "pos": Vector3(38, 0, 38), "aggr": false, "is_boss": false},
+		{"name": "Saeron", "level": 35, "hp": 3500, "pos": Vector3(35, 3.0, -35), "aggr": true, "is_boss": true}
 	]
 
 	for info in extra_mobs_info:
@@ -66,12 +67,13 @@ func _spawn_initial_map_mobs() -> void:
 			"max_hp": info["hp"],
 			"defence": 4 + info["level"],
 			"wander_speed": 2.5,
-			"wander_radius": 12.0,
-			"respawn_time": 10.0,
+			"wander_radius": 8.0,
+			"respawn_time": 25.0 if info["is_boss"] else 10.0,
 			"is_aggressive": info["aggr"],
 			"chase_speed": 4.5,
-			"attack_damage": 10 + info["level"] * 2,
-			"attack_cooldown": 1.4
+			"attack_damage": 35 + info["level"] * 3 if info["is_boss"] else 10 + info["level"] * 2,
+			"attack_cooldown": 1.2 if info["is_boss"] else 1.4,
+			"is_boss": info["is_boss"]
 		}
 		_spawn_new_mob(info["pos"], mob_data)
 
@@ -100,6 +102,7 @@ func _spawn_new_mob(spawn_pos: Vector3, mob_info: Dictionary) -> void:
 	new_mob.chase_speed = mob_info.get("chase_speed", 4.0)
 	new_mob.attack_damage = mob_info.get("attack_damage", 12)
 	new_mob.attack_cooldown = mob_info.get("attack_cooldown", 1.5)
+	new_mob.is_boss = mob_info.get("is_boss", false)
 	new_mob.spawn_origin = spawn_pos
 	new_mob.position = spawn_pos
 	
@@ -134,6 +137,7 @@ func _handle_mouse_click(screen_position: Vector2) -> void:
 	var query = PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
 	query.collide_with_areas = true
 	query.collide_with_bodies = true
+	query.collision_mask = 1
 	query.exclude = [player.get_rid()]
 	
 	var result = space_state.intersect_ray(query)

@@ -454,7 +454,7 @@ func _on_minimap_draw() -> void:
 			var item_color: Color = dropped_item.item_data.get_rarity_color() if dropped_item.item_data else Color(0.95, 0.85, 0.2)
 			minimap_draw_node.draw_circle(dot_pos, 2.5, item_color)
 
-	# 4. Desenhar Mobs Vivos (Pontos Vermelhos)
+	# 4. Desenhar Mobs Vivos (Pontos Vermelhos para normais | Ponto Dourado/Laranja Grande para Boss)
 	var mobs = get_tree().get_nodes_in_group("mobs")
 	for node in mobs:
 		var mob = node as Mob
@@ -464,10 +464,16 @@ func _on_minimap_draw() -> void:
 			var nz: float = clamp(pos_3d.z / world_half_size, -1.0, 1.0)
 			var dot_pos: Vector2 = center + Vector2(nx * map_radius, nz * map_radius)
 			
-			# Brilho externo suave
-			minimap_draw_node.draw_circle(dot_pos, 5.0, Color(1.0, 0.2, 0.2, 0.35))
-			# Ponto central vermelho
-			minimap_draw_node.draw_circle(dot_pos, 3.2, Color(0.95, 0.2, 0.2))
+			if mob.is_boss:
+				# Destaque de Boss (Ponto pulsante grande laranja-dourado)
+				minimap_draw_node.draw_circle(dot_pos, 8.0, Color(1.0, 0.4, 0.1, 0.5))
+				minimap_draw_node.draw_circle(dot_pos, 5.0, Color(1.0, 0.85, 0.2))
+				minimap_draw_node.draw_circle(dot_pos, 3.0, Color(1.0, 0.2, 0.1))
+			else:
+				# Brilho externo suave
+				minimap_draw_node.draw_circle(dot_pos, 5.0, Color(1.0, 0.2, 0.2, 0.35))
+				# Ponto central vermelho
+				minimap_draw_node.draw_circle(dot_pos, 3.2, Color(0.95, 0.2, 0.2))
 
 	# 5. Desenhar o Jogador (Ponto Verde)
 	if player and is_instance_valid(player) and not player.is_dead:
@@ -1251,6 +1257,30 @@ func _finish_drag_item(release_pos: Vector2) -> void:
 		if inv_rect.has_point(release_pos):
 			is_outside = false
 
+	# Verificar se foi solto sobre a janela da Loja do NPC ou sobre o NPC Vendedor no 3D
+	var is_dropped_on_shop: bool = false
+	if shop_window and shop_window.visible:
+		if shop_window.get_global_rect().has_point(release_pos):
+			is_dropped_on_shop = true
+
+	if not is_dropped_on_shop:
+		var cam := get_viewport().get_camera_3d()
+		if cam:
+			var space_state = get_tree().current_scene.get_world_3d().direct_space_state
+			var ray_origin = cam.project_ray_origin(release_pos)
+			var ray_end = ray_origin + cam.project_ray_normal(release_pos) * 2000.0
+			var query = PhysicsRayQueryParameters3D.create(ray_origin, ray_end)
+			query.collision_mask = 1
+			var res = space_state.intersect_ray(query)
+			if res and res.has("collider"):
+				var col = res.collider
+				if col is NPCShop or (col.get_parent() and col.get_parent() is NPCShop) or col.is_in_group("npcs"):
+					is_dropped_on_shop = true
+
+	if is_dropped_on_shop:
+		_process_item_sale(drag_slot_idx)
+		return
+
 	if is_outside:
 		# Jogar o item no chão 3D!
 		inv.drop_item_to_ground(drag_slot_idx)
@@ -1297,6 +1327,130 @@ func _cancel_drag_preview_node() -> void:
 	if drag_preview_panel and is_instance_valid(drag_preview_panel):
 		drag_preview_panel.queue_free()
 	drag_preview_panel = null
+
+# Elementos de UI - Confirmação de Venda de Item Raro
+var sell_confirm_window: PanelContainer = null
+var lbl_sell_confirm_msg: Label = null
+var pending_sell_slot_idx: int = -1
+var pending_sell_item: ItemData = null
+var pending_sell_value: int = 0
+
+func _process_item_sale(slot_idx: int) -> void:
+	if not player or not player.inventory or slot_idx < 0:
+		return
+	var inv: InventoryManager = player.inventory
+	if slot_idx >= inv.max_slots:
+		return
+	var slot = inv.slots[slot_idx]
+	if slot == null or not (slot.get("item") is ItemData):
+		return
+		
+	var item: ItemData = slot["item"]
+	var sell_val: int = item.get_sell_value_eons()
+	
+	if item.is_high_rarity_or_valuable():
+		pending_sell_slot_idx = slot_idx
+		pending_sell_item = item
+		pending_sell_value = sell_val
+		_show_sell_confirmation_dialog(item, sell_val)
+	else:
+		_execute_item_sale(slot_idx, item, sell_val)
+
+func _show_sell_confirmation_dialog(item: ItemData, sell_val: int) -> void:
+	if not sell_confirm_window:
+		_create_sell_confirmation_window()
+	if lbl_sell_confirm_msg:
+		var r_name: String = item.get_rarity_name()
+		lbl_sell_confirm_msg.text = "⚠️ CONFIRMAR VENDA DE ITEM RARO\n\nVocê deseja mesmo vender:\n%s (%s)\n\nPor %d Éons?" % [item.get_display_name(), r_name, sell_val]
+	if sell_confirm_window:
+		sell_confirm_window.visible = true
+		sell_confirm_window.move_to_front()
+
+func _create_sell_confirmation_window() -> void:
+	sell_confirm_window = PanelContainer.new()
+	sell_confirm_window.custom_minimum_size = Vector2(360, 210)
+	var viewport_size := get_viewport().get_visible_rect().size
+	sell_confirm_window.global_position = (viewport_size * 0.5) - Vector2(180, 105)
+	
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.08, 0.08, 0.12, 0.96)
+	sb.border_width_left = 2
+	sb.border_width_right = 2
+	sb.border_width_top = 2
+	sb.border_width_bottom = 2
+	sb.border_color = Color(1.0, 0.82, 0.2, 0.9)
+	sb.corner_radius_top_left = 8
+	sb.corner_radius_top_right = 8
+	sb.corner_radius_bottom_left = 8
+	sb.corner_radius_bottom_right = 8
+	sb.content_margin_left = 16
+	sb.content_margin_right = 16
+	sb.content_margin_top = 16
+	sb.content_margin_bottom = 16
+	sell_confirm_window.add_theme_stylebox_override("panel", sb)
+	
+	var vbox := VBoxContainer.new()
+	vbox.add_theme_constant_override("separation", 14)
+	sell_confirm_window.add_child(vbox)
+	
+	lbl_sell_confirm_msg = Label.new()
+	lbl_sell_confirm_msg.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl_sell_confirm_msg.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	lbl_sell_confirm_msg.add_theme_font_size_override("font_size", 14)
+	lbl_sell_confirm_msg.add_theme_color_override("font_color", Color(1.0, 0.92, 0.7))
+	vbox.add_child(lbl_sell_confirm_msg)
+	
+	var hbox_btns := HBoxContainer.new()
+	hbox_btns.alignment = BoxContainer.ALIGNMENT_CENTER
+	hbox_btns.add_theme_constant_override("separation", 16)
+	vbox.add_child(hbox_btns)
+	
+	var btn_sim := Button.new()
+	btn_sim.text = " ✔️ Sim, Vender "
+	btn_sim.custom_minimum_size = Vector2(120, 34)
+	btn_sim.pressed.connect(func():
+		sell_confirm_window.visible = false
+		if pending_sell_slot_idx >= 0 and pending_sell_item != null:
+			_execute_item_sale(pending_sell_slot_idx, pending_sell_item, pending_sell_value)
+			pending_sell_slot_idx = -1
+			pending_sell_item = null
+	)
+	hbox_btns.add_child(btn_sim)
+	
+	var btn_nao := Button.new()
+	btn_nao.text = " ❌ Cancelar "
+	btn_nao.custom_minimum_size = Vector2(100, 34)
+	btn_nao.pressed.connect(func():
+		sell_confirm_window.visible = false
+		pending_sell_slot_idx = -1
+		pending_sell_item = null
+	)
+	hbox_btns.add_child(btn_nao)
+	
+	add_child(sell_confirm_window)
+	sell_confirm_window.visible = false
+
+func _execute_item_sale(slot_idx: int, item: ItemData, sell_val: int) -> void:
+	if not player or not player.inventory:
+		return
+	var inv: InventoryManager = player.inventory
+	if slot_idx < 0 or slot_idx >= inv.max_slots:
+		return
+	var slot = inv.slots[slot_idx]
+	if slot == null or slot.get("item") != item:
+		return
+		
+	var qty: int = slot.get("quantity", 1)
+	var total_eons: int = sell_val * qty
+	
+	inv.slots[slot_idx] = null
+	inv.add_eons(total_eons)
+	
+	DamagePopup.spawn(player.get_parent(), player.global_position + Vector3(0, 1.2, 0), "🪙 +%d Éons!" % total_eons, Color(0.2, 0.95, 0.3), 38, true)
+	if selected_slot_idx == slot_idx:
+		selected_slot_idx = -1
+	_update_inventory_ui()
+	_update_item_inspector()
 
 func _on_slot_right_clicked(slot_idx: int) -> void:
 	if not player or not player.inventory:
