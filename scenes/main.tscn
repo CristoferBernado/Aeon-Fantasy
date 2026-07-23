@@ -5,6 +5,7 @@
 [ext_resource type="Script" uid="uid://c8n1m9k4p2x7v" path="res://scripts/player.gd" id="3_player"]
 [ext_resource type="PackedScene" uid="uid://d8x1m4k7n9p2b" path="res://scenes/mob.tscn" id="5_mob_scene"]
 [ext_resource type="PackedScene" path="res://scenes/tree_pine.tscn" id="6_tree_pine"]
+[ext_resource type="PackedScene" path="res://assets/fantasy character 3d model.glb" id="7_character_model"]
 
 [sub_resource type="ProceduralSkyMaterial" id="ProceduralSkyMaterial_1"]
 sky_top_color = Color(0.384314, 0.454902, 0.54902, 1)
@@ -85,8 +86,8 @@ material = SubResource("StandardMaterial3D_hilt")
 size = Vector3(0.08, 0.25, 0.08)
 
 [sub_resource type="CapsuleShape3D" id="CapsuleShape3D_player"]
-radius = 0.4
-height = 1.6
+radius = 0.6
+height = 2.4
 
 [sub_resource type="StandardMaterial3D" id="StandardMaterial3D_red"]
 albedo_color = Color(0.85, 0.25, 0.25, 1)
@@ -195,33 +196,16 @@ transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, -0.1, 0)
 shape = SubResource("BoxShape3D_ground")
 
 [node name="Player" type="CharacterBody3D" parent="NavigationRegion3D"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.8, 0)
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.2, 0)
 script = ExtResource("3_player")
 
 [node name="VisualMesh" type="Node3D" parent="NavigationRegion3D/Player"]
 
-[node name="Capsule" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-mesh = SubResource("CapsuleMesh_player")
+[node name="CharacterModel" parent="NavigationRegion3D/Player/VisualMesh" instance=ExtResource("7_character_model")]
+transform = Transform3D(2.6, 0, 0, 0, 2.6, 0, 0, 0, 2.6, 0, -1.2, 0)
 
-[node name="EyesPointer" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, 0.3)
-mesh = SubResource("BoxMesh_pointer")
-
-[node name="FeetLeft" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.22, -0.68, 0.08)
-mesh = SubResource("BoxMesh_foot")
-
-[node name="FeetRight" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.22, -0.68, 0.08)
-mesh = SubResource("BoxMesh_foot")
-
-[node name="HandLeft" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -0.48, -0.1, 0.15)
-mesh = SubResource("BoxMesh_hand")
-
-[node name="HandRight" type="MeshInstance3D" parent="NavigationRegion3D/Player/VisualMesh"]
-transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.48, -0.1, 0.15)
-mesh = SubResource("BoxMesh_hand")
+[node name="HandRight" type="Node3D" parent="NavigationRegion3D/Player/VisualMesh"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0.7, 0, 0.25)
 
 [node name="WeaponSword" type="Node3D" parent="NavigationRegion3D/Player/VisualMesh/HandRight"]
 transform = Transform3D(1, 0, 0, 0, 0.7071, -0.7071, 0, 0.7071, 0.7071, 0, 0, 0)

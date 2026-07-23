@@ -1,27 +1,30 @@
-# Aeon Fantasy - Câmera Isométrica 3D & MMORPG Core Systems
+# Aeon Fantasy - Full 3D Action RPG & MMORPG Core Systems
 
-Protótipo completo de RPG de Ação 3D com câmera isométrica estilo *Ragnarok Online* e *MU Online*, desenvolvido na **Godot Engine 4**.
+Protótipo completo de RPG de Ação 3D com câmera livre 360º, modelo de personagem 3D customizado em formato `.glb` e mecânicas MMORPG inspiradas em *Ragnarok Online* e *MU Online*, desenvolvido na **Godot Engine 4**.
 
 ---
 
 ## 🎮 Funcionalidades Principais
 
-### 🏰 Terreno Elevado, Escada Rebaixada (Estilo RO) & Boss do Mapa
-- **Plataforma Elevada ($Y = 3.0\text{m}$)**: Platô no setor Nordeste do mapa (`Vector3(35, 1.5, -35)`).
-- **Escada Rebaixada com Degraus de Pedra**: Topo a $Y = 2.90\text{m}$ (abaixo do piso do platô $Y = 3.00\text{m}$) para transição contínua.
-- **Bloqueio de Mobs nas Escadas**: Mobs e Bosses são impedidos de subir ou descer as escadas entre os andares, mantendo o jogador com 100% de liberdade de movimento.
-- **👑 Saeron (BOSS Lv 35)**:
-  - Nível 35, 3500 HP, malha $2.5\times$ maior, confinado ao platô elevado.
-  - **Rótulo 3D Flutuante Acima da Cabeça**: `👑 Saeron (BOSS Lv 35)` posicionado em $Y = 2.85\text{m}$ com renderização nítida sem clipping de câmera, exibindo nome, nível e HP de forma perfeitamente legível.
+### 🧙‍♂️ Personagem 3D Heroico (`.glb`)
+- **Malha 3D de Alta Qualidade**: Personagem 3D completo (`fantasy character 3d model.glb`) em escala heroica de **$2.6\times$**.
+- **Ajuste de Física e Colisão**: Caixas de colisão 3D ajustadas em $2.4\text{m}$ de altura para movimentação precisa no ambiente 3D.
+- **Animações e Combate**: Balanço de caminhada procedural e animação de golpe em arco com espada metálica reluzente e fagulhas de impacto 3D.
 
-### ⚔️ Animações Procedurais & Modelo 3D da Lâmina do Caçador
-- **Mãos e Pés Harmonizados**: Pés e mãos na cor azul reluzente do corpo do personagem.
-- **Passada Física de Pés e Mãos**: Balanço alternado de pés e mãos com pausa inteligente em colisões.
-- **Espada 3D & Golpe de Corte**: Lâmina de aço reluzente metálico, guarda dourada e animação de corte em arco com fagulhas de impacto.
+### 🎥 Câmera Livre 360º em 3D
+- **Rotação Livre via Botão Direito (RMB)**: Segure e arraste o botão direito do mouse para orbitar suavemente a câmera em **360º na horizontal (Yaw)** e inclinar entre **$15^\circ$ e $85^\circ$ na vertical (Pitch)**.
+- **Controles Auxiliares de Câmera**:
+  - **Scroll do Mouse**: Zoom In / Zoom Out ($8.0\text{m}$ a $28.0\text{m}$).
+  - **Teclas `Q` / `E` / `Setas`**: Giros rápidos de $90^\circ$.
+  - **Tecla `R`**: Reseta a câmera para o ângulo neutro de $45^\circ$.
 
-### 💥 Efeitos Visuais 3D para Mobs & Venda de Itens no NPC
-- **Fumaça de Morte (Explosão Poof 3D)** & **Aura Amarela de Spawn**.
-- **Venda de Itens ao NPC Vendedor (Drag & Drop)** com confirmação para raridades **Excelente**, **Ancient** e **★ GALÁCTICO ★**.
+### 🏰 Terreno Elevado, Escadas e Bosses de Mapa
+- **Platô Elevado ($Y = 3.0\text{m}$)**: Setor Nordeste com escada rebaixada de pedra para transição fluida.
+- **👑 Saeron (BOSS Lv 35)**: Boss com $3500\text{ HP}$, malha $2.5\times$ maior e rótulo 3D flutuante com `no_depth_test` para visibilidade impecável em qualquer ângulo 3D.
+
+### 🎒 Inventário, Equipamentos & Mercado NPC
+- **Sistema de Raridade**: Comum, Excelente, Ancient e ★ GALÁCTICO ★.
+- **NPC Vendedor e Ferreiro**: Compra, venda (drag & drop) com confirmação para itens raros e reparo de durabilidade.
 
 ---
 
@@ -35,9 +38,10 @@ Protótipo completo de RPG de Ação 3D com câmera isométrica estilo *Ragnarok
 
 ## ⌨️ Controles
 
-- **Botão Esquerdo do Mouse**: Movimento / Seleção de alvos / Drag & Drop.
-- **Scroll da Roda do Mouse**: Controla o Zoom da câmera (`8.0m` a `28.0m`).
-- **Barra de Espaço (`[Espaço]`)**: Coleta automaticamente o item no chão mais próximo do jogador.
-- **Botão Direito do Mouse**: Equipa consumíveis ou desequipa itens de acordo com o contexto.
-- **Teclas `Q` / `E` / `Setas`**: Gira a câmera 90°.
-- **Tecla `C`**: Janela de Atributos | **Tecla `I`**: Mochila | **Tecla `O`**: Equipamentos.
+- **Botão Esquerdo do Mouse (LMB)**: Movimentação / Seleção de Alvo / Interação / Drag & Drop na UI.
+- **Botão Direito do Mouse (RMB + Arraste)**: **Rotação livre em 360º da Câmera (Yaw e Pitch)**.
+- **Roda do Mouse (Scroll)**: Controla o Zoom da Câmera ($8.0\text{m}$ a $28.0\text{m}$).
+- **Barra de Espaço (`[Espaço]`)**: Coleta automaticamente o item no chão mais próximo.
+- **Teclas `Q` / `E` / `Setas`**: Rotação rápida em passos de $90^\circ$.
+- **Tecla `R`**: Reseta o ângulo e inclinação da câmera.
+- **Teclas `C`, `I`, `O`**: Janelas de Atributos, Mochila e Equipamentos.

@@ -25,6 +25,14 @@ class_name CameraController
 @export var rotation_duration: float = 0.35
 ## Ativa a transição suave de rotação de 90°
 @export var enable_smooth_rotation: bool = true
+## Ativa a rotação livre de 360° segurando o Botão Direito do Mouse
+@export var enable_rmb_drag_rotation: bool = true
+## Sensibilidade de rotação do mouse
+@export var mouse_sensitivity: float = 0.005
+## Inclinação vertical mínima em graus
+@export var min_pitch: float = 15.0
+## Inclinação vertical máxima em graus
+@export var max_pitch: float = 85.0
 
 @export_group("Follow Settings")
 ## Alvo 3D para a câmera seguir (Jogador)
@@ -41,6 +49,7 @@ var target_yaw_rad: float = deg_to_rad(45.0)
 var target_ortho_size: float = 18.0
 var tween: Tween = null
 var is_animating: bool = false
+var is_rmb_dragging: bool = false
 
 # Sinal emitido ao mudar a rotação da câmera
 signal rotation_changed(current_angle_degrees: float)
@@ -82,18 +91,34 @@ func _physics_process(delta: float) -> void:
 		camera.size = lerp(camera.size, target_ortho_size, delta * zoom_smoothness)
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
+	if event is InputEventMouseButton:
+		if event.button_index == MOUSE_BUTTON_RIGHT and enable_rmb_drag_rotation:
+			is_rmb_dragging = event.pressed
+		elif event.pressed:
+			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+				zoom_in()
+			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+				zoom_out()
+				
+	elif event is InputEventMouseMotion and is_rmb_dragging and enable_rmb_drag_rotation:
+		# Girar horizontalmente em 360° (Yaw)
+		rotation.y -= event.relative.x * mouse_sensitivity
+		target_yaw_rad = rotation.y
+		
+		# Girar verticalmente entre min_pitch e max_pitch (Pitch)
+		if pitch_node:
+			pitch_angle_degrees = clamp(pitch_angle_degrees + event.relative.y * (mouse_sensitivity * 12.0), min_pitch, max_pitch)
+			pitch_node.rotation.x = deg_to_rad(-pitch_angle_degrees)
+			
+		emit_signal("rotation_changed", get_current_angle_degrees())
+
+	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode in [KEY_Q, KEY_A, KEY_LEFT]:
 			rotate_camera_step(-1) # Girar 90° no sentido anti-horário
 		elif event.keycode in [KEY_E, KEY_D, KEY_RIGHT]:
 			rotate_camera_step(1)  # Girar 90° no sentido horário
 		elif event.keycode == KEY_R:
 			reset_camera()         # Resetar para 45°
-	elif event is InputEventMouseButton and event.pressed:
-		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-			zoom_in()
-		elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-			zoom_out()
 
 ## Aproxima a câmera (Zoom In)
 func zoom_in() -> void:
@@ -151,6 +176,10 @@ func reset_camera() -> void:
 	current_step_index = 0
 	target_yaw_rad = deg_to_rad(45.0)
 	
+	pitch_angle_degrees = 45.0
+	if pitch_node:
+		pitch_node.rotation.x = deg_to_rad(-pitch_angle_degrees)
+
 	if enable_smooth_rotation:
 		_animate_to_target_yaw(-1 if rotation.y > target_yaw_rad else 1)
 	else:
